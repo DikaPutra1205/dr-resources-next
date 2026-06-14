@@ -1,11 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
-import { fmt } from '@/lib/utils';
-import { Clock, User, Circle } from 'lucide-react';
+import type { Profile } from '@/lib/types';
+import { Clock, User, Wifi, WifiOff } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
+function timeAgo(date: string) {
+  const diff = Date.now() - new Date(date).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'Baru saja';
+  if (m < 60) return `${m}m lalu`;
+  const h = Math.floor(m / 60);
+  return `${h}j lalu`;
+}
+
 export default async function AdminLogsPage() {
   const supabase = await createClient();
+
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
   const [logsRes, activeRes] = await Promise.all([
     supabase
@@ -16,12 +27,13 @@ export default async function AdminLogsPage() {
     supabase
       .from('profiles')
       .select('id, name, email, role, last_active_at')
-      .gt('last_active_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
+      .not('last_active_at', 'is', null)
+      .gt('last_active_at', cutoff)
       .order('last_active_at', { ascending: false }),
   ]);
 
   const logs = logsRes.data;
-  const activeUsers = activeRes.data;
+  const activeUsers = activeRes.data as (Profile & { last_active_at: string })[];
 
   return (
     <div className="space-y-6">
@@ -31,7 +43,6 @@ export default async function AdminLogsPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Logs table */}
         <div className="flex-1 card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
@@ -80,35 +91,43 @@ export default async function AdminLogsPage() {
           </div>
         </div>
 
-        {/* Active users sidebar */}
-        <div className="lg:w-72 shrink-0">
+        <div className="lg:w-72 shrink-0 space-y-3">
           <div className="card">
-            <h2 className="text-sm font-bold text-[#0E3D40] flex items-center gap-2 mb-4">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              Active Now
-            </h2>
+            <div className="flex items-center gap-2 mb-4">
+              <Wifi className="w-4 h-4 text-green-600" />
+              <h2 className="text-sm font-bold text-[#0E3D40]">Aktif Sekarang</h2>
+              <span className="ml-auto text-[10px] font-bold text-[#6B8079] bg-[#F5EFE0] px-2 py-0.5 rounded-full">
+                {activeUsers?.length || 0}
+              </span>
+            </div>
             {(!activeUsers || activeUsers.length === 0) ? (
-              <p className="text-xs text-[#6B8079]">Tidak ada user aktif.</p>
+              <div className="flex flex-col items-center py-6 text-center">
+                <WifiOff className="w-8 h-8 text-[#C4B998] mb-2" />
+                <p className="text-xs text-[#6B8079]">Tidak ada user aktif</p>
+                <p className="text-[10px] text-[#C4B998] mt-0.5">5 menit sejak aktivitas terakhir</p>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {activeUsers.map(u => (
-                  <div key={u.id} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#0E3D40] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                      {u.name?.charAt(0)?.toUpperCase() || '?'}
+                  <div key={u.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-[#FAF5EA] transition-colors">
+                    <div className="relative shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-[#0E3D40] flex items-center justify-center text-white text-xs font-bold">
+                        {u.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-[#0E3D40] truncate">{u.name}</p>
-                      <p className="text-[10px] text-[#6B8079]">
-                        {Math.floor((Date.now() - new Date(u.last_active_at).getTime()) / 60000)}m ago
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-[#0E3D40] truncate leading-tight">{u.name}</p>
+                      <p className="text-[10px] text-[#6B8079]">{timeAgo(u.last_active_at)}</p>
                     </div>
-                    <Circle className="w-2 h-2 fill-green-500 text-green-500 ml-auto shrink-0" />
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <p className="text-[10px] text-[#6B8079] mt-2 text-center">5 menit sejak aktivitas terakhir</p>
+          {activeUsers && activeUsers.length > 0 && (
+            <p className="text-[10px] text-[#6B8079] text-center">5 menit sejak aktivitas terakhir</p>
+          )}
         </div>
       </div>
     </div>

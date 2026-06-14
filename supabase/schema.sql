@@ -9,7 +9,7 @@ create table public.profiles (
   name        text not null,
   email       text not null,
   role        text not null default 'user' check (role in ('admin', 'user')),
-  last_active_at timestamptz default now(),
+  last_active_at timestamptz,
   created_at  timestamptz default now()
 );
 alter table public.profiles enable row level security;
