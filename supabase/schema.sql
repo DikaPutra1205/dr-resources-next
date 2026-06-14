@@ -224,11 +224,11 @@ create trigger cleanup_activity_logs_trigger
 after insert on public.activity_logs
 for each statement execute function public.cleanup_activity_logs();
 
--- Auto-cleanup transactions: keep max 100 entries
+-- Auto-cleanup transactions: keep max 10 entries
 create or replace function public.cleanup_transactions()
 returns trigger as $$
 declare
-  max_keep constant int := 100;
+  max_keep constant int := 10;
   cutoff_id bigint;
 begin
   select id into cutoff_id from public.transactions order by id desc limit 1 offset max_keep - 1;
