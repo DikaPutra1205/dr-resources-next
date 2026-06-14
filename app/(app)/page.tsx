@@ -114,16 +114,6 @@ export default function DashboardPage() {
     return globalPrices[resource];
   }
 
-  function getAccountValue(acc: any): number {
-    let val = 0;
-    const stock = acc.resource_stock;
-    if (!stock) return 0;
-    RESOURCES.forEach(res => {
-      val += ((stock[res] || 0) * getAccountPrice(acc, res)) / 1000000;
-    });
-    return val;
-  }
-
   // Helper to resolve Kingdom Name for filtering
   function getKingdomName(acc: any): string {
     if (acc.kingdom && typeof acc.kingdom === 'object') {
@@ -204,12 +194,9 @@ export default function DashboardPage() {
       });
     });
 
-    const grandTotalValue = values.food + values.wood + values.stone + values.gold;
-
     return {
       sums,
       values,
-      grandTotalValue
     };
   }, [filteredAccounts, globalPrices, kingdomPrices]);
 
@@ -437,13 +424,13 @@ export default function DashboardPage() {
                 {RESOURCES.map(res => (
                   <th key={res} className="py-3.5 px-3 text-right w-1/12 min-w-[100px]">{RESOURCE_LABELS[res]}</th>
                 ))}
-                <th className="py-3.5 px-4 text-right w-1/12 min-w-[110px]">Estimasi Nilai</th>
+
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8DDC9]/50">
               {filteredAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-[#6B8079] font-medium">
+                  <td colSpan={9} className="py-8 text-center text-[#6B8079] font-medium">
                     Tidak ada akun game yang cocok dengan kriteria filter.
                   </td>
                 </tr>
@@ -571,10 +558,6 @@ export default function DashboardPage() {
                         );
                       })}
 
-                      {/* Valuation */}
-                      <td className="py-3 px-4 text-right font-bold text-[#0E3D40] whitespace-nowrap font-mono">
-                        Rp {fmt(getAccountValue(acc))}
-                      </td>
                     </tr>
                   );
                 })
@@ -593,9 +576,7 @@ export default function DashboardPage() {
                       {fmt(totals.sums[res])}
                     </td>
                   ))}
-                  <td className="py-3.5 px-4 text-right font-mono font-black text-sm text-[#0E3D40] bg-[#FAF5EA]/80 whitespace-nowrap">
-                    Rp {fmt(totals.grandTotalValue)}
-                  </td>
+
                 </tr>
               </tfoot>
             )}
