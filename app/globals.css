@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary:   #0E3D40;
+  --color-accent:    #2BB673;
+  --color-warn:      #D9745A;
+  --color-bg:        #F5EFE0;
+  --color-surface:   #FFFFFF;
+  --color-border:    #E8DDC9;
+  --color-muted:     #6B8079;
+  --color-subtle:    #5C6E6E;
+  --color-bg-soft:   #FAF5EA;
+}
+
+/* Keyframes harus di luar @layer */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #E8DDC9; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #c5b89a; }
+}
+
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+  .animate-slideUp {
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #E8DDC9; border-radius: 9999px; }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl border border-[#E8DDC9] shadow-sm;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-[#0E3D40] hover:bg-[#1a5559] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#2BB673]/50 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-[#FAF5EA] text-[#0E3D40] text-xs font-bold uppercase tracking-wider rounded-lg border border-[#E8DDC9] transition-colors focus:outline-none;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-[#D9745A] hover:bg-[#c4634a] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors focus:outline-none;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-[#E8DDC9] text-[#0E3D40] focus:border-[#2BB673] focus:ring focus:ring-[#2BB673]/20 bg-[#FAF5EA]/50 text-sm px-3 py-2 outline-none transition-all;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-black/10 bg-white/70 text-[#0E3D40] focus:border-[#2BB673] focus:ring-2 focus:ring-[#2BB673]/20 text-sm px-3 py-2.5 outline-none transition-all placeholder:text-[#6B8079]/50 backdrop-blur-sm;
+  }
+
+  .label {
+    @apply block text-xs font-semibold text-[#6B8079] uppercase tracking-wider mb-1.5;
+  }
+
+  .badge-admin {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0E3D40] text-white uppercase tracking-wider;
+  }
+
+  .badge-user {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FAF5EA] text-[#6B8079] border border-[#E8DDC9] uppercase tracking-wider;
+  }
+
+  .glass-card {
+    @apply bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl shadow-sm;
+  }
+}
