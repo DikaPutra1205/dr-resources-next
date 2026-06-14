@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CalcTotals, AccountCalcData, ResourcePrices } from '@/lib/types';
+import { CalcTotals, AccountCalcData, ResourcePrices, ResourceType } from '@/lib/types';
 import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt } from '@/lib/utils';
 import { AlertTriangle, Package, Loader2, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -395,7 +395,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                         {Object.entries(trip.resources).map(([resName, resVal]: any) => (
                           <div key={resName} className="flex items-center justify-between text-xs">
                             <span className="capitalize font-semibold text-[#6B8079] flex items-center gap-1">
-                              <span className={cn("w-1.5 h-1.5 rounded-full", RESOURCE_DOT[resName as any])}></span>
+                              <span className={cn("w-1.5 h-1.5 rounded-full", RESOURCE_DOT[resName as ResourceType])}></span>
                               {resName}
                             </span>
                             <div className="text-right">
