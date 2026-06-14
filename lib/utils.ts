@@ -15,7 +15,25 @@ export function fmt(n: number): string {
 /** Parse shorthand input: "200m" → 200_000_000, "150k" → 150_000, "1.5m" → 1_500_000 */
 export function parseShorthand(value: string): number {
   if (!value || value.trim() === '') return 0;
-  const val = value.toLowerCase().trim().replace(',', '.');
+  
+  let val = value.toLowerCase().trim();
+  
+  // Convert Indonesian decimal comma to dot (e.g., "2,5" -> "2.5")
+  val = val.replace(',', '.');
+  
+  // Count the dots to detect thousand separators
+  const dotCount = (val.match(/\./g) || []).length;
+  if (dotCount > 1) {
+    // Multiple dots always indicate thousand separators (e.g., "2.500.000") -> strip all dots
+    val = val.replace(/\./g, '');
+  } else if (dotCount === 1) {
+    // Single dot: if it's NOT a decimal dot (i.e. not followed by 1 or 2 digits and optional k/m suffix),
+    // then it's a thousand separator, so strip it. This also handles intermediate typing states like "2.0000".
+    if (!/\.\d{1,2}(?:\s*[km])?$/.test(val)) {
+      val = val.replace('.', '');
+    }
+  }
+
   if (!isNaN(Number(val))) return Math.floor(Number(val));
 
   const match = val.match(/^([0-9.]+)\s*([km])$/);

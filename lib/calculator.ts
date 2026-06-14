@@ -123,9 +123,13 @@ export function calculateProportional(
 
     for (const accData of accountsData) {
       const r = accData.resources[res];
-      r.required_gross = scaling >= 1.0
-        ? r.sendable_gross
-        : Math.round(r.sendable_gross * scaling);
+      r.required_net = scaling >= 1.0
+        ? r.sendable_net
+        : Math.round(r.sendable_net * scaling);
+      r.required_gross = Math.min(
+        Math.ceil(r.required_net * (1 + accData.tax_rate)),
+        r.sendable_gross
+      );
       r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate));
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
