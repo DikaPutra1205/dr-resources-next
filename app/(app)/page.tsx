@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [kingdoms, setKingdoms] = useState<Kingdom[]>([]);
-  
+
   // Pricing state
   const [globalPrices, setGlobalPrices] = useState<Record<ResourceType, number>>({ food: 0, wood: 0, stone: 0, gold: 0 });
   const [kingdomPrices, setKingdomPrices] = useState<Record<number, Record<ResourceType, number>>>({});
@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
   async function fetchData() {
     setLoading(true);
-    
+
     // Auth & Profile
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -76,7 +76,7 @@ export default function DashboardPage() {
     const kPrices = {} as Record<number, Record<ResourceType, number>>;
 
     const pricesList = prRes.data || [];
-    
+
     // Global Prices
     pricesList.forEach(p => {
       if (p.kingdom_id === null) {
@@ -168,8 +168,8 @@ export default function DashboardPage() {
     // Filter by Search text
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
-      list = list.filter(acc => 
-        acc.name.toLowerCase().includes(q) || 
+      list = list.filter(acc =>
+        acc.name.toLowerCase().includes(q) ||
         (acc.profile?.name && acc.profile.name.toLowerCase().includes(q))
       );
     }
@@ -217,7 +217,7 @@ export default function DashboardPage() {
   function startEditing(accId: number, resource: ResourceType, currentVal: number) {
     const acc = accounts.find(a => a.id === accId);
     if (!acc) return;
-    
+
     // Check permission (Admin or owner)
     const canEdit = isAdmin || acc.user_id === userId;
     if (!canEdit) return;
@@ -229,7 +229,7 @@ export default function DashboardPage() {
   // Handle saving the inline edit
   async function handleSaveEdit(accId: number, resource: ResourceType) {
     if (!editingCell) return;
-    
+
     const parsedValue = parseShorthand(editValue);
     const cleanValue = Math.max(0, parsedValue);
 
@@ -306,8 +306,8 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <select 
-              value={filterUserId} 
+            <select
+              value={filterUserId}
               onChange={e => {
                 setFilterUserId(e.target.value);
                 setActiveKingdom('all'); // Reset kingdom tab to prevent empty state mismatch
@@ -400,23 +400,23 @@ export default function DashboardPage() {
         <div className="p-5 border-b border-[#E8DDC9] flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#FAF5EA]/35 gap-4">
           <div>
             <h3 className="text-sm font-bold text-[#0E3D40] uppercase tracking-wider">Stok Persediaan Akun Game</h3>
-            <p className="text-xs text-[#6B8079] mt-0.5">Klik cell angka stok untuk mengedit stok Anda secara langsung (input angka/shorthand `m`/`k`).</p>
+            <p className="text-xs text-[#6B8079] mt-0.5">Klik cell angka stok untuk mengedit stok Anda secara langsung (input angka).</p>
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-64">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Cari nama akun atau pemilik..." 
+                placeholder="Cari nama akun atau pemilik..."
                 className="w-full rounded-lg border border-[#E8DDC9] text-[#0E3D40] focus:border-[#2BB673] focus:ring focus:ring-[#2BB673]/20 bg-white text-xs py-1.5 pl-8 pr-3 font-semibold shadow-inner outline-none transition-colors"
               />
               <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-[#6B8079]">
                 <Search className="w-4 h-4" />
               </span>
             </div>
-            <Link 
-              href="/game-accounts" 
+            <Link
+              href="/game-accounts"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#2BB673] hover:bg-[#23945d] rounded-lg shadow-sm transition-colors whitespace-nowrap"
             >
               Kelola Akun
@@ -465,7 +465,7 @@ export default function DashboardPage() {
                       {/* Type Badge */}
                       <td className="py-3 px-3 text-center whitespace-nowrap">
                         <span className={cn(
-                          'inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase', 
+                          'inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase',
                           acc.type === 'main' ? 'bg-[#0E3D40]/10 text-[#0E3D40]' : 'bg-[#2BB673]/10 text-[#2BB673]'
                         )}>
                           {acc.type}
@@ -475,12 +475,12 @@ export default function DashboardPage() {
                       {/* Kingdom Badge */}
                       <td className="py-3 px-3 text-center whitespace-nowrap">
                         {acc.kingdom && typeof acc.kingdom === 'object' ? (
-                          <span 
+                          <span
                             className="text-[10px] font-semibold px-2 py-0.5 rounded-full border shadow-sm"
-                            style={{ 
-                              borderColor: acc.kingdom.color_hex, 
-                              color: acc.kingdom.color_hex, 
-                              backgroundColor: `${acc.kingdom.color_hex}10` 
+                            style={{
+                              borderColor: acc.kingdom.color_hex,
+                              color: acc.kingdom.color_hex,
+                              backgroundColor: `${acc.kingdom.color_hex}10`
                             }}
                           >
                             {acc.kingdom.name}
@@ -508,8 +508,8 @@ export default function DashboardPage() {
                         const isSuccess = successCells[cellKey];
 
                         return (
-                          <td 
-                            key={res} 
+                          <td
+                            key={res}
                             onClick={() => !isEditing && startEditing(acc.id, res, qty)}
                             className={cn(
                               "py-3 px-3 text-right font-mono font-medium relative transition-all duration-150 whitespace-nowrap",
@@ -520,7 +520,7 @@ export default function DashboardPage() {
                               {isSaving && (
                                 <Loader2 className="w-3 h-3 animate-spin text-[#2BB673]" />
                               )}
-                              
+
                               {isEditing ? (
                                 <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                                   <input

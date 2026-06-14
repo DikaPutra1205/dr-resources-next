@@ -69,6 +69,10 @@ export default function NetStockPage() {
     return globalPrices[resource];
   }
 
+  function floorToMillion(n: number) {
+    return Math.floor(n / 1_000_000) * 1_000_000;
+  }
+
   function calcSendable(acc: any, res: ResourceType) {
     const tp = TRADING_POST_CONFIG[acc.trading_post_level];
     const sh = STOREHOUSE_CONFIG[acc.storehouse_level];
@@ -76,7 +80,7 @@ export default function NetStockPage() {
     const stock = acc.resource_stock?.[res] ?? 0;
     const prot = sh?.[res] ?? 0;
     const gross = Math.max(0, stock - prot);
-    const net = Math.floor(gross / (1 + tax));
+    const net = floorToMillion(Math.floor(gross / (1 + tax)));
     return { gross, net };
   }
 
