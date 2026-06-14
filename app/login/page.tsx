@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setError('Email atau password salah.');
@@ -29,7 +29,7 @@ export default function LoginPage() {
       return;
     }
 
-    log('user.login', { email });
+    await log('user.login', { email }, data.user?.id);
     router.push('/');
     router.refresh();
   }

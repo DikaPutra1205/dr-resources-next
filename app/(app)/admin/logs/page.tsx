@@ -92,7 +92,7 @@ export default async function AdminLogsPage() {
         </div>
 
         <div className="lg:w-72 shrink-0 space-y-3">
-          <div className="card">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-4">
               <Wifi className="w-4 h-4 text-green-600" />
               <h2 className="text-sm font-bold text-[#0E3D40]">Aktif Sekarang</h2>

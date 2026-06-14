@@ -1,12 +1,12 @@
 import { createClient } from './supabase/client';
 
-export async function log(action: string, details?: Record<string, any>) {
+export async function log(action: string, details?: Record<string, any>, userId?: string) {
   try {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const uid = userId || (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return;
     await supabase.from('activity_logs').insert({
-      user_id: user.id,
+      user_id: uid,
       action,
       details: details || null,
     });
