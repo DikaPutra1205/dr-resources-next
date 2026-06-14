@@ -21,7 +21,7 @@ export default function UsersPage() {
 
   async function fetchData() {
     setLoading(true);
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('profiles').select('*').eq('role', 'user').order('created_at', { ascending: false });
     if (data) setUsers(data);
     setLoading(false);
   }

@@ -37,6 +37,35 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
+
+    // Real-time subscription for stock updates
+    const channel = supabase
+      .channel('dashboard-stock-changes')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'resource_stocks' },
+        (payload) => {
+          const newStock = payload.new as any;
+          setAccounts(prev => prev.map(a =>
+            a.id === newStock.game_account_id
+              ? { ...a, resource_stock: { ...(a.resource_stock || {}), ...newStock } }
+              : a
+          ));
+        }
+      )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'resource_stocks' },
+        (payload) => {
+          const newStock = payload.new as any;
+          setAccounts(prev => prev.map(a =>
+            a.id === newStock.game_account_id
+              ? { ...a, resource_stock: { ...(a.resource_stock || {}), ...newStock } }
+              : a
+          ));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   async function fetchData() {

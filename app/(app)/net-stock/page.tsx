@@ -22,6 +22,23 @@ export default function NetStockPage() {
 
   useEffect(() => {
     fetchData();
+
+    const channel = supabase
+      .channel('netstock-stock-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'resource_stocks' },
+        (payload) => {
+          const s = payload.new as any;
+          setAccounts(prev => prev.map(a =>
+            a.id === s.game_account_id
+              ? { ...a, resource_stock: { ...(a.resource_stock || {}), ...s } }
+              : a
+          ));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   async function fetchData() {

@@ -137,6 +137,7 @@ create table public.transactions (
   total_stone_received   bigint not null default 0,
   total_gold_received    bigint not null default 0,
   total_estimated_value  numeric(12,4) not null default 0,
+  image_url              text,
   created_at             timestamptz default now()
 );
 alter table public.transactions enable row level security;
@@ -205,11 +206,11 @@ create policy "activity_logs: admin can read" on public.activity_logs for select
 );
 create policy "activity_logs: authenticated can insert" on public.activity_logs for insert with check (auth.role() = 'authenticated');
 
--- Auto-cleanup: keep max 1000 log entries
+-- Auto-cleanup: keep max 500 log entries
 create or replace function public.cleanup_activity_logs()
 returns trigger as $$
 declare
-  max_keep constant int := 1000;
+  max_keep constant int := 500;
   cutoff_id bigint;
 begin
   select id into cutoff_id from public.activity_logs order by id desc limit 1 offset max_keep - 1;
@@ -223,11 +224,11 @@ create trigger cleanup_activity_logs_trigger
 after insert on public.activity_logs
 for each statement execute function public.cleanup_activity_logs();
 
--- Auto-cleanup transactions: keep max 500 entries
+-- Auto-cleanup transactions: keep max 100 entries
 create or replace function public.cleanup_transactions()
 returns trigger as $$
 declare
-  max_keep constant int := 500;
+  max_keep constant int := 100;
   cutoff_id bigint;
 begin
   select id into cutoff_id from public.transactions order by id desc limit 1 offset max_keep - 1;
@@ -240,6 +241,32 @@ $$ language plpgsql security definer;
 create trigger cleanup_transactions_trigger
 after insert on public.transactions
 for each statement execute function public.cleanup_transactions();
+
+-- ============================================================
+-- 11. Storage bucket for transaction images
+-- ============================================================
+insert into storage.buckets (id, name, public) values ('transaction-images', 'transaction-images', true)
+on conflict (id) do nothing;
+
+create policy "transaction-images: authenticated can read"
+on storage.objects for select using (bucket_id = 'transaction-images' and auth.role() = 'authenticated');
+
+create policy "transaction-images: admin can insert"
+on storage.objects for insert with check (
+  bucket_id = 'transaction-images' and
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+create policy "transaction-images: admin can delete"
+on storage.objects for delete using (
+  bucket_id = 'transaction-images' and
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+-- ============================================================
+-- 12. Enable Realtime for stock tables
+-- ============================================================
+alter publication supabase_realtime add table resource_stocks;
 
 -- ============================================================
 -- SEED: Admin user Dika

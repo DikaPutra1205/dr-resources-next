@@ -86,6 +86,7 @@ export interface Transaction {
   total_stone_received: number;
   total_gold_received: number;
   total_estimated_value: number;
+  image_url: string | null;
   created_at: string;
   // Relations
   creator?: Profile;

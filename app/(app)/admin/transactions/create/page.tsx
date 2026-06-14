@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, ShieldAlert, Check } from 'lucide-react';
+import { ArrowLeft, Save, ShieldAlert, Check, Upload, X, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 import type { GameAccount, ResourcePrices } from '@/lib/types';
 
@@ -27,6 +28,11 @@ export default function ManualTransactionPage() {
   
   // input net: { accId: { food: number, wood: number, ... } }
   const [inputs, setInputs] = useState<Record<number, Record<string, number>>>({});
+
+  // Image Upload
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -76,6 +82,28 @@ export default function ManualTransactionPage() {
     }
   }
 
+  async function uploadImage(): Promise<string | null> {
+    if (!imageFile) return null;
+    setUploading(true);
+    try {
+      const ext = imageFile.name.split('.').pop();
+      const filePath = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('transaction-images')
+        .upload(filePath, imageFile);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage
+        .from('transaction-images')
+        .getPublicUrl(filePath);
+      return publicUrl;
+    } catch (err: any) {
+      alert('Gagal upload gambar: ' + err.message);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleSave() {
     if (!toName) return alert('Nama tujuan (to_name) harus diisi.');
     if (selectedAccountIds.length === 0) return alert('Pilih minimal satu akun.');
@@ -84,6 +112,8 @@ export default function ManualTransactionPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
+
+      const imageUrl = await uploadImage();
 
       // Calculate totals
       let tFood = 0, tWood = 0, tStone = 0, tGold = 0, tVal = 0;
@@ -128,7 +158,8 @@ export default function ManualTransactionPage() {
         kingdom: kingdom || null,
         total_food_sent: 0, total_wood_sent: 0, total_stone_sent: 0, total_gold_sent: 0,
         total_food_received: tFood, total_wood_received: tWood, total_stone_received: tStone, total_gold_received: tGold,
-        total_estimated_value: tVal
+        total_estimated_value: tVal,
+        image_url: imageUrl
       };
 
       const { data: tx, error: txError } = await supabase.from('transactions').insert(txPayload).select('id').single();
@@ -198,6 +229,39 @@ export default function ManualTransactionPage() {
             <div>
               <label className="block text-xs font-bold text-[#6B8079] mb-1.5">Catatan (Opsional)</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input-field min-h-[80px]" placeholder="Catatan transaksi..." />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#6B8079] mb-1.5">Bukti Transfer (Opsional)</label>
+              {imagePreview ? (
+                <div className="relative">
+                  <Image src={imagePreview} alt="Preview" width={400} height={300} className="rounded-lg border border-[#E8DDC9] object-cover w-full max-h-[200px]" />
+                  <button
+                    type="button"
+                    onClick={() => { setImageFile(null); setImagePreview(null); }}
+                    className="absolute top-2 right-2 p-1 bg-[#D9745A] text-white rounded-full hover:bg-[#c0654d] transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-[#E8DDC9] rounded-lg p-6 cursor-pointer hover:border-[#2BB673] hover:bg-[#2BB673]/5 transition-all">
+                  <Upload className="w-6 h-6 text-[#6B8079] mb-2" />
+                  <span className="text-xs font-semibold text-[#6B8079]">Klik untuk upload gambar</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setImageFile(file);
+                        setImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                </label>
+              )}
             </div>
           </div>
           

@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, User, Calendar, MapPin, Receipt, ArrowRight } from 'lucide-react';
+import { ArrowLeft, User, Calendar, MapPin, Receipt, ArrowRight, ImageIcon } from 'lucide-react';
+import Image from 'next/image';
 import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
 
@@ -76,6 +77,23 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
             {tx.notes && (
               <div className="mt-2 p-3 bg-white border border-[#E8DDC9] rounded-lg text-sm text-[#6B8079] italic">
                 "{tx.notes}"
+              </div>
+            )}
+
+            {tx.image_url && (
+              <div>
+                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <ImageIcon className="w-3 h-3" /> Bukti Transfer
+                </p>
+                <a href={tx.image_url} target="_blank" rel="noopener noreferrer">
+                  <Image
+                    src={tx.image_url}
+                    alt="Bukti Transfer"
+                    width={400}
+                    height={300}
+                    className="rounded-lg border border-[#E8DDC9] object-cover w-full max-h-[250px] hover:opacity-90 transition-opacity cursor-zoom-in"
+                  />
+                </a>
               </div>
             )}
           </div>
