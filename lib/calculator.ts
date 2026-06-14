@@ -37,7 +37,7 @@ export function buildAccountData(accounts: GameAccount[]): AccountCalcData[] {
       const stock = acc.resource_stock?.[res] ?? 0;
       const protection = shConfig[res];
       const sendableGross = Math.max(0, stock - protection);
-      const sendableNet = Math.floor(sendableGross / (1 + taxRate));
+      const sendableNet = Math.floor(sendableGross / (1 + taxRate) + 1e-9);
       
       resources[res] = {
         stock,
@@ -130,7 +130,7 @@ export function calculateProportional(
         Math.ceil(r.required_net * (1 + accData.tax_rate)),
         r.sendable_gross
       );
-      r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate));
+      r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
   }
@@ -254,7 +254,7 @@ export function calculateFairShare(
         Math.ceil(netAssigned * (1 + accData.tax_rate)),
         accData.resources[res].sendable_gross,
       );
-      const netActual = Math.floor(grossNeeded / (1 + accData.tax_rate));
+      const netActual = Math.floor(grossNeeded / (1 + accData.tax_rate) + 1e-9);
       accData.resources[res].required_gross = grossNeeded;
       accData.resources[res].required_net = netActual;
       accData.resources[res].trips = calcTrips(netActual, accData.capacity_per_trip);
@@ -291,7 +291,7 @@ export function calculateManual(
       } else {
         const grossNeeded = Math.ceil(netTarget * (1 + accData.tax_rate));
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
-        r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate));
+        r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
       }
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
@@ -319,7 +319,7 @@ export function calculateTripBreakdown(
       if (sent > 0) {
         resources[res] = {
           sent,
-          received: Math.floor(sent / (1 + taxRate)),
+          received: Math.floor(sent / (1 + taxRate) + 1e-9),
         };
       }
     }
@@ -354,7 +354,7 @@ export function calculateTripBreakdown(
       if (sent > 0) {
         resources[res] = {
           sent,
-          received: Math.floor(sent / (1 + taxRate)),
+          received: Math.floor(sent / (1 + taxRate) + 1e-9),
         };
       }
     }

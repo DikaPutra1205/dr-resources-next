@@ -56,7 +56,7 @@ export function formatInput(raw: string): string {
 /** Get sendable gross and net for an account resource */
 export function getSendable(stock: number, protection: number, taxRate: number) {
   const sendableGross = Math.max(0, stock - protection);
-  const sendableNet = Math.floor(sendableGross / (1 + taxRate));
+  const sendableNet = Math.floor(sendableGross / (1 + taxRate) + 1e-9);
   return { sendableGross, sendableNet };
 }
 
