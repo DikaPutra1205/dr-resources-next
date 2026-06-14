@@ -6,6 +6,7 @@ import { GameAccount, Kingdom, Profile, ResourceType } from '@/lib/types';
 import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, RESOURCE_BORDER, fmt, parseShorthand, formatInput, getSendable, cn } from '@/lib/utils';
 import { Loader2, Gamepad2, Search, ArrowLeftRight, HelpCircle, Check, Shield, Edit3 } from 'lucide-react';
 import Link from 'next/link';
+import { log } from '@/lib/logger';
 
 export default function DashboardPage() {
   const supabase = createClient();
@@ -283,6 +284,8 @@ export default function DashboardPage() {
         }
         return a;
       }));
+
+      log('stock.update', { game_account_id: accId, resource, old_value: oldVal, new_value: cleanValue });
 
       // Trigger success animation
       setSuccessCells(prev => ({ ...prev, [cellKey]: true }));

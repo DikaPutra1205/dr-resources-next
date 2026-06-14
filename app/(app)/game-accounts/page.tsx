@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GameAccount, Kingdom, ResourceType, Profile } from '@/lib/types';
 import { Plus, Edit2, Trash2, Loader2, Save, Check } from 'lucide-react';
+import { log } from '@/lib/logger';
 import { RESOURCES, RESOURCE_LABELS, RESOURCE_COLORS, RESOURCE_DOT, RESOURCE_BORDER, cn, fmt, parseShorthand, formatInput } from '@/lib/utils';
 
 export default function GameAccountsPage() {
@@ -104,6 +105,7 @@ export default function GameAccountsPage() {
         setSaving(false);
         return;
       }
+      log('account.update', { account_id: formAccount.id, ...payload });
     } else {
       const { data, error } = await supabase.from('game_accounts').insert(payload).select('id').single();
       if (error) {
@@ -116,6 +118,7 @@ export default function GameAccountsPage() {
         newAccountId = data.id;
         // Create initial stock
         await supabase.from('resource_stocks').insert({ game_account_id: newAccountId });
+        log('account.create', { account_id: data.id, name: payload.name, owner: payload.user_id });
       }
     }
 
@@ -127,6 +130,7 @@ export default function GameAccountsPage() {
   async function handleDelete(id: number) {
     if (!confirm('Yakin ingin menghapus akun ini? Semua data stok akan hilang.')) return;
     await supabase.from('game_accounts').delete().eq('id', id);
+    log('account.delete', { account_id: id });
     fetchData();
   }
 

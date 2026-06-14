@@ -13,6 +13,7 @@ export interface Profile {
   name: string;
   email: string;
   role: UserRole;
+  last_active_at: string;
   created_at: string;
 }
 

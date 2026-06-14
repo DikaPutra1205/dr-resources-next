@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import type { Profile } from '@/lib/types';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AppLayoutClient({
   profile,
@@ -14,6 +15,25 @@ export default function AppLayoutClient({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Active user tracking — ping every 60s + on focus
+  useEffect(() => {
+    if (!profile?.id) return;
+    const supabase = createClient();
+    const ping = () => {
+      supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', profile.id).then(() => {});
+    };
+    ping();
+    const interval = setInterval(ping, 60_000);
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') ping();
+    };
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [profile?.id]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F5EFE0] h-screen overflow-hidden">

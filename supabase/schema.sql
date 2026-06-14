@@ -9,6 +9,7 @@ create table public.profiles (
   name        text not null,
   email       text not null,
   role        text not null default 'user' check (role in ('admin', 'user')),
+  last_active_at timestamptz default now(),
   created_at  timestamptz default now()
 );
 alter table public.profiles enable row level security;
@@ -22,6 +23,7 @@ create policy "profiles: admin can update" on public.profiles for update using (
 create policy "profiles: admin can delete" on public.profiles for delete using (
   (select role from public.profiles where id = auth.uid()) = 'admin'
 );
+create policy "profiles: user can update own" on public.profiles for update using (auth.uid() = id);
 
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
