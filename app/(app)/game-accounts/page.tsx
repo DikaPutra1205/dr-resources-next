@@ -31,10 +31,14 @@ export default function GameAccountsPage() {
   async function fetchData() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    let localUserId = '';
+    let localIsAdmin = false;
     if (user) {
+      localUserId = user.id;
       setUserId(user.id);
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      setIsAdmin(prof?.role === 'admin');
+      localIsAdmin = prof?.role === 'admin';
+      setIsAdmin(localIsAdmin);
     }
 
     const [accRes, kRes, pRes] = await Promise.all([
@@ -48,7 +52,13 @@ export default function GameAccountsPage() {
       supabase.from('profiles').select('*').order('name')
     ]);
 
-    if (accRes.data) setAccounts(accRes.data as unknown as GameAccount[]);
+    if (accRes.data) {
+      let data = accRes.data as unknown as GameAccount[];
+      if (!localIsAdmin && localUserId) {
+        data = data.filter(a => a.user_id === localUserId);
+      }
+      setAccounts(data);
+    }
     if (kRes.data) setKingdoms(kRes.data);
     if (pRes.data) setProfiles(pRes.data);
     setLoading(false);
@@ -140,9 +150,11 @@ export default function GameAccountsPage() {
           <h1 className="text-2xl font-extrabold text-[#0E3D40] tracking-tight">Akun Game</h1>
           <p className="text-sm text-[#6B8079] mt-1">Kelola akun dan update stok resource.</p>
         </div>
-        <button onClick={() => handleOpenModal()} className="btn-primary shrink-0">
-          <Plus className="w-4 h-4" /> Tambah Akun
-        </button>
+        {isAdmin && (
+          <button onClick={() => handleOpenModal()} className="btn-primary shrink-0">
+            <Plus className="w-4 h-4" /> Tambah Akun
+          </button>
+        )}
       </div>
 
       <div className="card overflow-hidden">
@@ -260,7 +272,7 @@ export default function GameAccountsPage() {
                         <button onClick={() => handleOpenModal(acc)} className="p-1.5 text-[#6B8079] hover:text-[#2BB673] hover:bg-[#2BB673]/10 rounded transition-colors">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        {(acc.user_id === userId || isAdmin) && (
+                        {isAdmin && (
                           <button onClick={() => handleDelete(acc.id)} className="p-1.5 text-[#6B8079] hover:text-[#D9745A] hover:bg-[#D9745A]/10 rounded transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -283,24 +295,52 @@ export default function GameAccountsPage() {
             </div>
             <form onSubmit={handleSaveAccount} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="label">Nama Akun</label>
-                  <input type="text" required value={formAccount.name || ''} onChange={e => setFormAccount({...formAccount, name: e.target.value})} className="input" />
-                </div>
-                <div>
-                  <label className="label">Tipe</label>
-                  <select value={formAccount.type || 'main'} onChange={e => setFormAccount({...formAccount, type: e.target.value as any})} className="input py-2.5">
-                    <option value="main">Main</option>
-                    <option value="farm">Farm</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Kingdom</label>
-                  <select value={formAccount.kingdom_id || ''} onChange={e => setFormAccount({...formAccount, kingdom_id: e.target.value ? Number(e.target.value) : null})} className="input py-2.5">
-                    <option value="">-- Pilih Kingdom --</option>
-                    {kingdoms.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-                  </select>
-                </div>
+                {isAdmin ? (
+                  <>
+                    <div className="col-span-2">
+                      <label className="label">Nama Akun</label>
+                      <input type="text" required value={formAccount.name || ''} onChange={e => setFormAccount({...formAccount, name: e.target.value})} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">Tipe</label>
+                      <select value={formAccount.type || 'main'} onChange={e => setFormAccount({...formAccount, type: e.target.value as any})} className="input py-2.5">
+                        <option value="main">Main</option>
+                        <option value="farm">Farm</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Kingdom</label>
+                      <select value={formAccount.kingdom_id || ''} onChange={e => setFormAccount({...formAccount, kingdom_id: e.target.value ? Number(e.target.value) : null})} className="input py-2.5">
+                        <option value="">-- Pilih Kingdom --</option>
+                        {kingdoms.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label">Pemilik Akun</label>
+                      <select value={formAccount.user_id || ''} onChange={e => setFormAccount({...formAccount, user_id: e.target.value})} className="input py-2.5">
+                        <option value="">-- Pilih Pemilik Akun --</option>
+                        {profiles.map(p => <option key={p.id} value={p.id}>{p.name} ({p.email})</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label">Catatan (opsional)</label>
+                      <input type="text" value={formAccount.notes || ''} onChange={e => setFormAccount({...formAccount, notes: e.target.value})} className="input" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="col-span-2">
+                      <label className="label">Nama Akun</label>
+                      <p className="input bg-[#FAF5EA]/50 text-[#0E3D40] font-medium py-2 px-3 rounded-lg border border-[#E8DDC9]">{formAccount.name}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label">Tipe / Kingdom</label>
+                      <p className="input bg-[#FAF5EA]/50 text-[#0E3D40] font-medium py-2 px-3 rounded-lg border border-[#E8DDC9]">
+                        {formAccount.type === 'main' ? 'Main' : 'Farm'} &middot; {kingdoms.find(k => k.id === formAccount.kingdom_id)?.name || '-'}
+                      </p>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="label">Level Trading Post</label>
                   <input type="number" min={1} max={25} required value={formAccount.trading_post_level || 1} onChange={e => setFormAccount({...formAccount, trading_post_level: Number(e.target.value)})} className="input" />
@@ -308,19 +348,6 @@ export default function GameAccountsPage() {
                 <div>
                   <label className="label">Level Storehouse</label>
                   <input type="number" min={1} max={25} required value={formAccount.storehouse_level || 1} onChange={e => setFormAccount({...formAccount, storehouse_level: Number(e.target.value)})} className="input" />
-                </div>
-                {isAdmin && (
-                  <div className="col-span-2">
-                    <label className="label">Pemilik Akun</label>
-                    <select value={formAccount.user_id || ''} onChange={e => setFormAccount({...formAccount, user_id: e.target.value})} className="input py-2.5">
-                      <option value="">-- Pilih Pemilik Akun --</option>
-                      {profiles.map(p => <option key={p.id} value={p.id}>{p.name} ({p.email})</option>)}
-                    </select>
-                  </div>
-                )}
-                <div className="col-span-2">
-                  <label className="label">Catatan (opsional)</label>
-                  <input type="text" value={formAccount.notes || ''} onChange={e => setFormAccount({...formAccount, notes: e.target.value})} className="input" />
                 </div>
               </div>
               <div className="pt-4 flex justify-end gap-3 border-t border-[#E8DDC9] mt-6">

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GameAccount, Kingdom, Profile, ResourceType } from '@/lib/types';
 import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, RESOURCE_BORDER, fmt, parseShorthand, formatInput, getSendable, cn } from '@/lib/utils';
-import { Loader2, Users, Gamepad2, Search, ArrowLeftRight, HelpCircle, Check, Shield, Edit3 } from 'lucide-react';
+import { Loader2, Gamepad2, Search, ArrowLeftRight, HelpCircle, Check, Shield, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -149,6 +149,11 @@ export default function DashboardPage() {
   // Filters application
   const filteredAccounts = useMemo(() => {
     let list = [...accounts];
+
+    // Non-admin: only see own accounts
+    if (!isAdmin) {
+      list = list.filter(acc => acc.user_id === userId);
+    }
 
     // Filter by Owner (Admin dropdown)
     if (filterUserId) {
@@ -386,42 +391,6 @@ export default function DashboardPage() {
           <div className="w-9 h-9 rounded-xl bg-[#D9745A]/10 flex items-center justify-center text-[#D9745A]">
             <ArrowLeftRight className="w-5 h-5" />
           </div>
-        </div>
-      </div>
-
-      {/* Resource Summaries & Grand Total */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {RESOURCES.map(res => (
-          <div key={res} className="card p-4 flex flex-col justify-between space-y-2 border-l-4" style={{ borderLeftColor: res === 'food' ? '#10B981' : res === 'wood' ? '#F59E0B' : res === 'stone' ? '#64748B' : '#F59E0B' }}>
-            <div>
-              <span className="block text-[10px] font-bold text-[#5C6E6E] uppercase tracking-wider flex items-center gap-1.5">
-                <span className={cn("w-2 h-2 rounded-full", RESOURCE_DOT[res])}></span>
-                Total {RESOURCE_LABELS[res]}
-              </span>
-              <span className="text-base font-black text-[#0E3D40] block font-mono mt-1">
-                {fmt(totals.sums[res])}
-              </span>
-            </div>
-            <span className="text-xs text-[#5C6E6E] font-semibold block">
-              Rp {fmt(totals.values[res])}
-            </span>
-          </div>
-        ))}
-
-        {/* Grand Total Value */}
-        <div className="col-span-2 lg:col-span-1 bg-[#2BB673]/10 p-4 rounded-2xl border border-[#2BB673]/30 flex flex-col justify-between shadow-sm relative overflow-hidden">
-          <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none">
-            <Users className="w-24 h-24 text-[#0E3D40]" />
-          </div>
-          <div>
-            <span className="block text-[10px] font-bold text-[#0E3D40] uppercase tracking-wider">TOTAL NILAI STOK</span>
-            <span className="text-lg font-black text-[#0E3D40] block mt-1">
-              Rp {fmt(totals.grandTotalValue)}
-            </span>
-          </div>
-          <span className="text-[9px] text-[#5C6E6E] font-medium block">
-            Gabungan nilai pasar semua resource
-          </span>
         </div>
       </div>
 

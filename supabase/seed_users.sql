@@ -1,6 +1,8 @@
 -- =========================================================================
--- DR Resources - User Seeding Script
--- Jalankan query ini di Supabase Dashboard → SQL Editor → New query
+-- DR Resources - User Seeding Script (LEGACY - via SQL)
+-- NOTE: If login fails with "email atau password salah", gunakan API route
+--       POST /api/seed-users  (lebih reliable karena pakai Admin API).
+--       Tambahkan SUPABASE_SERVICE_ROLE_KEY ke .env.local terlebih dahulu.
 -- =========================================================================
 
 -- ==========================================
@@ -18,7 +20,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Hasyim", "role": "admin"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- Admin 2: Irzaldi
 INSERT INTO auth.users (
@@ -31,7 +33,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Irzaldi", "role": "admin"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- Admin 3: Daabison
 INSERT INTO auth.users (
@@ -44,7 +46,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Daabison", "role": "admin"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 
 -- ==========================================
@@ -62,7 +64,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Bernardo", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 2: Chris
 INSERT INTO auth.users (
@@ -75,7 +77,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Chris", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 3: Falih
 INSERT INTO auth.users (
@@ -88,7 +90,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Falih", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 4: Jemis
 INSERT INTO auth.users (
@@ -101,7 +103,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Jemis", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 5: Rafif
 INSERT INTO auth.users (
@@ -114,7 +116,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Rafif", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 6: Rakha
 INSERT INTO auth.users (
@@ -127,7 +129,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Rakha", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 7: Yovan
 INSERT INTO auth.users (
@@ -140,7 +142,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Yovan", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 8: Landhung
 INSERT INTO auth.users (
@@ -153,7 +155,7 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Landhung", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
 
 -- User 9: Iqbal
 INSERT INTO auth.users (
@@ -166,4 +168,4 @@ INSERT INTO auth.users (
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   '{"name": "Iqbal", "role": "user"}'::jsonb,
   now(), now(), '', ''
-);
+) ON CONFLICT DO NOTHING;
