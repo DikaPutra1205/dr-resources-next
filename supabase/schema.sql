@@ -190,6 +190,58 @@ insert into public.storehouse_configs (level,food_protection,wood_protection,sto
 (25,2500000,2500000,2500000,2500000);
 
 -- ============================================================
+-- 10. Activity Logs
+-- ============================================================
+create table public.activity_logs (
+  id         bigint generated always as identity primary key,
+  user_id    uuid references public.profiles(id) on delete set null,
+  action     text not null,
+  details    jsonb,
+  created_at timestamptz default now()
+);
+alter table public.activity_logs enable row level security;
+create policy "activity_logs: admin can read" on public.activity_logs for select using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+create policy "activity_logs: authenticated can insert" on public.activity_logs for insert with check (auth.role() = 'authenticated');
+
+-- Auto-cleanup: keep max 1000 log entries
+create or replace function public.cleanup_activity_logs()
+returns trigger as $$
+declare
+  max_keep constant int := 1000;
+  cutoff_id bigint;
+begin
+  select id into cutoff_id from public.activity_logs order by id desc limit 1 offset max_keep - 1;
+  if cutoff_id is not null then
+    delete from public.activity_logs where id <= cutoff_id;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer;
+create trigger cleanup_activity_logs_trigger
+after insert on public.activity_logs
+for each statement execute function public.cleanup_activity_logs();
+
+-- Auto-cleanup transactions: keep max 500 entries
+create or replace function public.cleanup_transactions()
+returns trigger as $$
+declare
+  max_keep constant int := 500;
+  cutoff_id bigint;
+begin
+  select id into cutoff_id from public.transactions order by id desc limit 1 offset max_keep - 1;
+  if cutoff_id is not null then
+    delete from public.transactions where id <= cutoff_id;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer;
+create trigger cleanup_transactions_trigger
+after insert on public.transactions
+for each statement execute function public.cleanup_transactions();
+
+-- ============================================================
 -- SEED: Admin user Dika
 -- Jalankan setelah schema selesai, lalu buat user via Supabase Auth
 -- kemudian update role-nya:

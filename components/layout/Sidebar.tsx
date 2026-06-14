@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Calculator, Users, Gamepad2,
   ArrowLeftRight, BarChart3, Settings, Shield,
-  ChevronRight, Globe, X,
+  ChevronRight, Globe, ClipboardList, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +29,7 @@ const adminItems: NavItem[] = [
   { href: '/admin/kingdoms',              label: 'Kingdoms',            icon: Globe },
   { href: '/admin/prices',               label: 'Harga Resource',      icon: Settings },
   { href: '/admin/transactions/create',  label: 'Tambah Transaksi',    icon: ArrowLeftRight },
+  { href: '/admin/logs',                 label: 'Activity Logs',       icon: ClipboardList },
 ];
 
 function NavLink({ item }: { item: NavItem }) {

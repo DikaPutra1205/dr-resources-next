@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Calculator, ArrowLeftRight, Gamepad2, BarChart3, Menu, X, Shield, Users, Globe, Settings
+  LayoutDashboard, Calculator, ArrowLeftRight, Gamepad2, BarChart3, Menu, X, Shield, Users, Globe, Settings, ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -26,6 +26,7 @@ const adminItems: NavItem[] = [
   { href: '/admin/kingdoms',             label: 'Kingdom',           icon: Globe },
   { href: '/admin/prices',              label: 'Harga Resource',    icon: Settings },
   { href: '/admin/transactions/create', label: 'Tambah Transaksi',  icon: ArrowLeftRight },
+  { href: '/admin/logs',                label: 'Activity Logs',     icon: ClipboardList },
 ];
 
 export default function MobileNav({ isAdmin }: { isAdmin: boolean }) {
