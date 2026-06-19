@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase (contains credentials & seed data - do not commit)
+/supabase
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

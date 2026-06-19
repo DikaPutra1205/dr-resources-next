@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { CalcTotals, AccountCalcData, ResourcePrices, ResourceType } from '@/lib/types';
 import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt } from '@/lib/utils';
-import { AlertTriangle, Package, Loader2, Save } from 'lucide-react';
+import { Package, Loader2, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { calculateTripBreakdown } from '@/lib/calculator';
 
 export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms }: any) {
   const router = useRouter();
-  const { accountsData, totals, warnings } = result;
+  const { accountsData, totals } = result;
   
   // State
   const [saving, setSaving] = useState(false);
@@ -29,14 +29,14 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
     setSentAt(isoString);
   }, []);
 
-  if (!totals || (totals.total_trips === 0 && warnings.length === 0)) {
+  if (!totals || totals.total_trips === 0) {
     return null; // Empty state
   }
 
   async function handleSaveTransaction() {
     if (!toName) return alert('Nama penerima harus diisi.');
     if (!sentAt) return alert('Tanggal & waktu pengiriman harus diisi.');
-    if (!confirm('Simpan transaksi dan kurangi stok akun?')) return;
+    if (!confirm('Simpan transaksi ini?')) return;
     
     setSaving(true);
     
@@ -111,15 +111,6 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
         trip_details: tripDetails,
       });
 
-      // Reduce stock in DB
-      for (const res of RESOURCES) {
-        const gross = accData.resources[res].required_gross;
-        if (gross > 0) {
-          const oldStock = accData.resources[res].stock;
-          const newStock = Math.max(0, oldStock - gross);
-          await supabase.from('resource_stocks').update({ [res]: newStock }).eq('game_account_id', accData.account.id);
-        }
-      }
     }
 
     const { error: cErr } = await supabase.from('transaction_contributions').insert(contribs);
@@ -138,20 +129,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* WARNINGS */}
-      {warnings.length > 0 && (
-        <div className="bg-[#D9745A]/10 border-l-4 border-[#D9745A] p-4 rounded-r-xl">
-          <div className="flex items-start">
-            <AlertTriangle className="w-5 h-5 text-[#D9745A] mr-3 mt-0.5 shrink-0" />
-            <div>
-              <h4 className="text-sm font-bold text-[#D9745A]">Peringatan Kekurangan Stok</h4>
-              <ul className="mt-2 text-xs text-[#D9745A]/80 list-disc list-inside space-y-1">
-                {warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* RESULT TABLE */}
       <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm overflow-hidden animate-fadeIn">
