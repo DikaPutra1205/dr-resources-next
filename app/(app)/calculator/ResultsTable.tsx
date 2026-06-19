@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { CalcTotals, AccountCalcData, ResourcePrices, ResourceType } from '@/lib/types';
 import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt } from '@/lib/utils';
-import { Package, Loader2, Save } from 'lucide-react';
+import { AlertTriangle, Info, Package, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { calculateTripBreakdown } from '@/lib/calculator';
 
 export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms }: any) {
   const router = useRouter();
-  const { accountsData, totals } = result;
+  const { accountsData, totals, warnings = [] } = result;
   
   // State
   const [saving, setSaving] = useState(false);
@@ -29,11 +29,22 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
     setSentAt(isoString);
   }, []);
 
-  if (!totals || totals.total_trips === 0) {
-    return null; // Empty state
+  // Show empty state only when there are no trips AND no warnings
+  if (!totals || (totals.total_trips === 0 && warnings.length === 0)) {
+    return (
+      <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm p-10 text-center animate-fadeIn">
+        <Info className="w-10 h-10 text-[#6B8079]/40 mx-auto mb-3" />
+        <h4 className="text-sm font-bold text-[#0E3D40] mb-1">Hasil Kalkulator Kosong</h4>
+        <p className="text-xs text-[#6B8079] max-w-xs mx-auto">
+          Hasil kalkulator tidak muncul karena stok semua akun yang terpilih masih <strong>kosong atau nol</strong>.
+          Isi stok akun terlebih dahulu di halaman <span className="text-[#2BB673] font-semibold">Game Accounts</span>.
+        </p>
+      </div>
+    );
   }
 
   async function handleSaveTransaction() {
+    if (warnings.length > 0) return alert('Terdapat akun dengan input melebihi stok. Perbaiki dulu sebelum menyimpan.');
     if (!toName) return alert('Nama penerima harus diisi.');
     if (!sentAt) return alert('Tanggal & waktu pengiriman harus diisi.');
     if (!confirm('Simpan transaksi ini?')) return;
@@ -128,9 +139,26 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      
 
-
+      {/* STOCK WARNINGS */}
+      {warnings.length > 0 && (
+        <div className="bg-[#D9745A]/10 border border-[#D9745A]/30 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-[#D9745A] shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-[#D9745A] mb-1.5">Input Melebihi Stok</h4>
+              <ul className="space-y-1">
+                {warnings.map((w: string, i: number) => (
+                  <li key={i} className="text-xs text-[#D9745A]/90 flex items-start gap-1.5">
+                    <span className="mt-0.5 shrink-0">•</span>{w}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-[#D9745A]/70 mt-2 font-medium">Transaksi tidak bisa disimpan selama ada pelanggaran stok di atas.</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* RESULT TABLE */}
       <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm overflow-hidden animate-fadeIn">
         <div className="bg-[#FAF5EA] px-4 py-3 border-b border-[#E8DDC9] flex justify-between items-center">
@@ -328,17 +356,24 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
             <div className="pt-2">
               <button 
                 onClick={handleSaveTransaction} 
-                disabled={saving || !toName} 
+                disabled={saving || !toName || warnings.length > 0} 
                 className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 bg-[#2BB673] hover:bg-[#23945d] text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#2BB673]/50 cursor-pointer disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:border disabled:border-gray-300/50"
               >
                 {saving ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-white" /> Menyimpan...
                   </span>
+                ) : warnings.length > 0 ? (
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Stok Tidak Mencukupi
+                  </span>
                 ) : (
                   <>Catat Transaksi</>
                 )}
               </button>
+              {warnings.length > 0 && (
+                <p className="text-[10px] text-[#D9745A] text-center mt-1.5 font-medium">Selesaikan pelanggaran stok di atas untuk menyimpan.</p>
+              )}
             </div>
           </div>
         </div>
