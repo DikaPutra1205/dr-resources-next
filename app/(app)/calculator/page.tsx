@@ -169,6 +169,11 @@ export default function CalculatorPage() {
 
   const selectedAccsForManual = allAccounts.filter(acc => selectedAccountIds.includes(acc.id) && (kingdomId === null || acc.kingdom_id === kingdomId));
 
+  // True when user has typed at least one non-zero value
+  const hasAnyInput = activeTab === 'manual'
+    ? Object.values(manualInputs).some(acc => RESOURCES.some(res => parseShorthand(acc?.[res] || '') > 0))
+    : RESOURCES.some(res => parseShorthand(targets[res]) > 0);
+
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[#2BB673]" /></div>;
 
   return (
@@ -551,6 +556,7 @@ export default function CalculatorPage() {
                userId={userId} 
                kingdomId={kingdomId}
                kingdoms={kingdoms}
+               hasAnyInput={hasAnyInput}
              />
           )}
 

@@ -7,7 +7,7 @@ import { AlertTriangle, Info, Package, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { calculateTripBreakdown } from '@/lib/calculator';
 
-export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms }: any) {
+export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms, hasAnyInput }: any) {
   const router = useRouter();
   const { accountsData, totals, warnings = [] } = result;
   
@@ -31,13 +31,26 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
 
   // Show empty state only when there are no trips AND no warnings
   if (!totals || (totals.total_trips === 0 && warnings.length === 0)) {
+    if (!hasAnyInput) {
+      // User hasn't typed anything yet
+      return (
+        <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm p-10 text-center animate-fadeIn">
+          <Package className="w-10 h-10 text-[#6B8079]/30 mx-auto mb-3" />
+          <h4 className="text-sm font-bold text-[#0E3D40] mb-1">Belum Ada Input</h4>
+          <p className="text-xs text-[#6B8079] max-w-xs mx-auto">
+            Masukkan jumlah resource yang ingin diterima di panel kiri untuk melihat hasil kalkulasi.
+          </p>
+        </div>
+      );
+    }
+    // User has typed targets but all accounts have zero stock
     return (
-      <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm p-10 text-center animate-fadeIn">
-        <Info className="w-10 h-10 text-[#6B8079]/40 mx-auto mb-3" />
-        <h4 className="text-sm font-bold text-[#0E3D40] mb-1">Hasil Kalkulator Kosong</h4>
+      <div className="bg-[#FAF5EA] rounded-xl border border-[#E8DDC9] shadow-sm p-10 text-center animate-fadeIn">
+        <Info className="w-10 h-10 text-[#D9745A]/50 mx-auto mb-3" />
+        <h4 className="text-sm font-bold text-[#0E3D40] mb-1">Stok Akun Masih Kosong</h4>
         <p className="text-xs text-[#6B8079] max-w-xs mx-auto">
-          Hasil kalkulator tidak muncul karena stok semua akun yang terpilih masih <strong>kosong atau nol</strong>.
-          Isi stok akun terlebih dahulu di halaman <span className="text-[#2BB673] font-semibold">Game Accounts</span>.
+          Target sudah dimasukkan, tapi <strong>stok semua akun yang dipilih masih nol</strong> sehingga tidak ada yang bisa dikirim.
+          Isi stok akun di halaman <span className="text-[#2BB673] font-semibold">Game Accounts</span> terlebih dahulu.
         </p>
       </div>
     );
