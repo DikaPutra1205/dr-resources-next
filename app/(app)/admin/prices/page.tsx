@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { Kingdom, ResourcePrice, ResourceType } from '@/lib/types';
 import { Loader2, Save } from 'lucide-react';
 import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
@@ -101,8 +102,12 @@ export default function ResourcePricesPage() {
     const { error } = await supabase.from('resource_prices').upsert(upserts, { onConflict: 'kingdom_id,resource' });
     
     setSaving(false);
-    if (!error) alert('Harga berhasil disimpan!');
-    else alert('Gagal menyimpan harga: ' + error.message);
+    if (!error) {
+      await log('price.update', { kingdom_count: kingdoms.length, global: true });
+      alert('Harga berhasil disimpan!');
+    } else {
+      alert('Gagal menyimpan harga: ' + error.message);
+    }
     
     fetchData();
   }

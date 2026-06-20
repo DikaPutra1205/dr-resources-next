@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { LogOut, User, ChevronDown, Package, Menu } from 'lucide-react';
 import type { Profile } from '@/lib/types';
 
@@ -19,6 +20,7 @@ export default function Navbar({
 
   async function handleLogout() {
     const supabase = createClient();
+    await log('user.logout');
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();

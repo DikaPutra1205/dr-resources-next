@@ -22,7 +22,8 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
       commissions:transaction_commissions(
         *,
         profile:profiles(name)
-      )
+      ),
+      fee_deductions:transaction_fee_deductions(*)
     `)
     .eq('id', id)
     .single();
@@ -39,7 +40,11 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
     food: tx.rate_food, wood: tx.rate_wood, stone: tx.rate_stone, gold: tx.rate_gold
   };
 
-  const totalCommission = (tx.commissions || []).reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const fees = (tx.fee_deductions || []) as any[];
+  const totalFees = fees.reduce((s: number, f: any) => s + Number(f.amount), 0);
+  const allCommissions = (tx.commissions || []) as any[];
+  const totalCommission = allCommissions.reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const feePerAdmin = allCommissions.length > 0 ? totalFees / allCommissions.length : 0;
   const totalContrib = Number(tx.total_estimated_value) - totalCommission;
 
   return (
@@ -138,6 +143,12 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
                 <span className="font-mono text-sm font-bold text-[#2BB673]">+ Rp {fmt(totalCommission)}</span>
               </div>
             )}
+            {totalFees > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/60">Potongan Biaya</span>
+                <span className="font-mono text-sm font-bold text-[#D9745A]">- Rp {fmt(totalFees)}</span>
+              </div>
+            )}
             <div className="border-t border-white/10 pt-2 mt-1 flex items-end justify-between">
               <span className="text-[10px] text-white/50 uppercase tracking-wider font-bold">Grand Total</span>
               <span className="font-mono text-xl font-black text-white">Rp {fmt(tx.total_estimated_value)}</span>
@@ -207,13 +218,13 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
       )}
 
       {/* Komisi Pengurus */}
-      {tx.commissions && tx.commissions.length > 0 && (
+      {allCommissions.length > 0 && (
         <div className="card overflow-hidden">
           <div className="px-5 py-3.5 bg-[#FAF5EA] border-b border-[#E8DDC9]">
             <h3 className="text-sm font-bold text-[#0E3D40]">Komisi Pengurus</h3>
           </div>
           <div className="divide-y divide-[#E8DDC9]/50">
-            {tx.commissions.map((c: any) => (
+            {allCommissions.map((c: any) => (
               <div key={c.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#FAF5EA]/50 transition-colors">
                 <div className="flex items-center gap-2.5">
                   <div className="w-6 h-6 rounded-full bg-[#0E3D40]/10 flex items-center justify-center">
@@ -230,6 +241,58 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
               <span className="text-xs text-[#5C6E6E] uppercase tracking-wider">Total Komisi</span>
               <span className="font-mono font-black text-[#D9745A]">Rp {fmt(totalCommission)}</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potongan Biaya */}
+      {fees.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#D9745A]/10 border-b border-[#D9745A]/20">
+            <h3 className="text-sm font-bold text-[#D9745A]">Potongan Biaya</h3>
+          </div>
+          <div className="divide-y divide-[#E8DDC9]/50">
+            {fees.map((f: any) => (
+              <div key={f.id} className="flex items-center justify-between px-5 py-3">
+                <span className="text-sm text-[#0E3D40]">{f.label}</span>
+                <span className="font-mono font-bold text-[#D9745A]">Rp {fmt(f.amount)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-5 py-3 bg-[#FAF5EA] font-bold">
+              <span className="text-xs text-[#5C6E6E] uppercase tracking-wider">Total Potongan</span>
+              <span className="font-mono font-black text-[#D9745A]">Rp {fmt(totalFees)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ringkasan Bersih per Pengurus */}
+      {allCommissions.length > 0 && totalFees > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#0E3D40]">
+            <h3 className="text-sm font-bold text-white">Bersih per Pengurus</h3>
+          </div>
+          <div className="divide-y divide-[#E8DDC9]/50">
+            {allCommissions.map((c: any) => {
+              const netAmount = Number(c.amount) - feePerAdmin;
+              return (
+                <div key={c.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#FAF5EA]/50 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-[#0E3D40]/10 flex items-center justify-center">
+                      <span className="text-[9px] font-black text-[#0E3D40]">
+                        {(c.profile?.name || '?').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="font-semibold text-[#0E3D40] text-sm">{c.profile?.name || 'Unknown'}</span>
+                  </div>
+                  <div className="text-right space-y-0.5">
+                    <div className="text-xs font-mono text-[#6B8079]">Komisi: Rp {fmt(c.amount)}</div>
+                    <div className="text-[10px] font-mono text-[#D9745A]">Potongan: -Rp {fmt(feePerAdmin)}</div>
+                    <div className="text-sm font-mono font-bold text-[#0E3D40]">Bersih: Rp {fmt(netAmount)}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

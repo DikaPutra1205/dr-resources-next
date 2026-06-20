@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { Profile } from '@/lib/types';
 import { Loader2, Save } from 'lucide-react';
 
@@ -33,10 +34,14 @@ export default function ProfilePage() {
     if (!profile) return;
     
     setSaving(true);
+    const oldName = profile.name;
     const { error } = await supabase.from('profiles').update({ name }).eq('id', profile.id);
     setSaving(false);
     
-    if (!error) alert('Profil berhasil diperbarui!');
+    if (!error) {
+      await log('profile.update', { old_name: oldName, new_name: name });
+      alert('Profil berhasil diperbarui!');
+    }
   }
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[#2BB673]" /></div>;

@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { CalcTotals, AccountCalcData, ResourcePrices, ResourceType } from '@/lib/types';
-import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt } from '@/lib/utils';
-import { AlertTriangle, Info, Package, Loader2, Upload, X as XIcon, Coins } from 'lucide-react';
+import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt, formatInput, parseShorthand } from '@/lib/utils';
+import { log } from '@/lib/logger';
+import { AlertTriangle, Info, Package, Loader2, Upload, X as XIcon, Coins, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { calculateTripBreakdown } from '@/lib/calculator';
 import Image from 'next/image';
@@ -12,6 +13,16 @@ interface CommissionEntry {
   uid: string;
   name: string;
   rate: string;
+}
+
+interface FeeDeduction {
+  tempId: string;
+  label: string;
+  amount: string;
+}
+
+function parseNum(val: string): number {
+  return parseShorthand(val);
 }
 
 export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms, hasAnyInput }: any) {
@@ -27,6 +38,9 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
   // Commission state
   const [commissions, setCommissions] = useState<CommissionEntry[]>([]);
   const [loadingComm, setLoadingComm] = useState(false);
+
+  // Fee deductions
+  const [feeDeductions, setFeeDeductions] = useState<FeeDeduction[]>([]);
 
   // Image (required)
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -83,24 +97,59 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
     setCommissions(p => p.map(c => c.uid === uid ? { ...c, rate: val } : c));
   }
 
+  // --- Fee deduction helpers ---
+  function addFeeDeduction() {
+    setFeeDeductions(p => [...p, { tempId: crypto.randomUUID(), label: '', amount: '' }]);
+  }
+  function updateFeeDeduction(tempId: string, field: keyof FeeDeduction, val: string) {
+    setFeeDeductions(p => p.map(f => f.tempId === tempId ? { ...f, [field]: val } : f));
+  }
+  function removeFeeDeduction(tempId: string) {
+    setFeeDeductions(p => p.filter(f => f.tempId !== tempId));
+  }
+
   // Total resources in millions (net received)
   const totalResourceMil = useMemo(() => {
     if (!totals) return 0;
     return RESOURCES.reduce((s, res) => s + (totals[`${res}_received`] || 0), 0) / 1_000_000;
   }, [totals]);
 
+  const activeCommissions = useMemo(() =>
+    commissions.filter(c => parseNum(c.rate) > 0),
+    [commissions]
+  );
+
   const commissionCalcs = useMemo(() =>
-    commissions.map(c => ({
+    activeCommissions.map(c => ({
       ...c,
       rate: c.rate,
-      amount: totalResourceMil * (parseFloat(c.rate) || 0),
+      amount: totalResourceMil * (parseNum(c.rate) || 0),
     })),
-    [commissions, totalResourceMil]
+    [activeCommissions, totalResourceMil]
   );
 
   const totalCommission = useMemo(
     () => commissionCalcs.reduce((s, c) => s + c.amount, 0),
     [commissionCalcs]
+  );
+
+  const totalFees = useMemo(
+    () => feeDeductions.reduce((s, f) => s + parseNum(f.amount), 0),
+    [feeDeductions]
+  );
+
+  const feePerAdmin = useMemo(
+    () => activeCommissions.length > 0 ? totalFees / activeCommissions.length : 0,
+    [totalFees, activeCommissions]
+  );
+
+  const netCommissions = useMemo(() =>
+    commissionCalcs.map(c => ({
+      ...c,
+      fee_share: feePerAdmin,
+      net_amount: c.amount - feePerAdmin,
+    })),
+    [commissionCalcs, feePerAdmin]
   );
 
   const grandTotal = (totals?.estimated_value || 0) + totalCommission;
@@ -212,6 +261,19 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
         if (commErr) throw new Error(commErr.message);
       }
 
+      // Insert fee deductions
+      const validFees = feeDeductions.filter(f => f.label.trim() && parseNum(f.amount) > 0);
+      if (validFees.length > 0) {
+        const feeRows = validFees.map(f => ({
+          transaction_id: tx.id,
+          label: f.label.trim(),
+          amount: parseNum(f.amount),
+        }));
+        const { error: feeErr } = await supabase.from('transaction_fee_deductions').insert(feeRows);
+        if (feeErr) throw new Error(feeErr.message);
+      }
+
+      await log('transaction.create', { transaction_id: tx.id, to_name: toName, grand_total: grandTotal, kingdom: kingdomName });
       alert('Transaksi berhasil disimpan!');
       router.push('/transactions');
       router.refresh();
@@ -390,6 +452,72 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                 </div>
               )}
             </div>
+            {/* Potongan Biaya */}
+            <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-[#D9745A]/10 border-b border-[#D9745A]/20">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#D9745A] uppercase tracking-wider">Potongan Biaya</span>
+                  <span className="text-[9px] text-[#6B8079]">dibagi rata ke {activeCommissions.length} pengurus</span>
+                </div>
+                <button onClick={addFeeDeduction}
+                  className="flex items-center gap-1 text-[10px] font-bold text-[#D9745A] bg-[#D9745A]/10 hover:bg-[#D9745A]/20 px-2 py-1 rounded-lg transition-colors">
+                  <Plus className="w-3 h-3" /> Tambah
+                </button>
+              </div>
+              {feeDeductions.length === 0 ? (
+                <div className="px-4 py-4 text-center text-xs text-[#6B8079]">
+                  Belum ada potongan biaya. (Opsional)
+                </div>
+              ) : (
+                <div className="divide-y divide-[#E8DDC9]/50">
+                  {feeDeductions.map(f => (
+                    <div key={f.tempId} className="flex items-center gap-2 px-4 py-2.5">
+                      <input type="text" value={f.label}
+                        onChange={e => updateFeeDeduction(f.tempId, 'label', e.target.value)}
+                        placeholder="Label"
+                        className="flex-1 text-xs border border-[#E8DDC9] rounded px-2 py-1 outline-none focus:border-[#D9745A]" />
+                      <div className="relative w-28">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-[#6B8079]">Rp</span>
+                        <input type="text" inputMode="numeric" value={formatInput(f.amount)}
+                          onChange={e => updateFeeDeduction(f.tempId, 'amount', e.target.value.replace(/\D/g, ''))}
+                          placeholder="0"
+                          className="w-full text-right text-xs font-mono py-1.5 pl-7 pr-2 border border-[#E8DDC9] rounded focus:border-[#D9745A] outline-none" />
+                      </div>
+                      <button onClick={() => removeFeeDeduction(f.tempId)}
+                        className="p-1 text-[#6B8079] hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {totalFees > 0 && (
+                <div className="px-4 py-2 bg-[#FAF5EA] border-t border-[#E8DDC9] flex items-center justify-between">
+                  <span className="text-[10px] text-[#6B8079] font-medium">Total Potongan</span>
+                  <span className="font-mono font-bold text-[#D9745A] text-xs">Rp {fmt(totalFees)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Ringkasan Bersih */}
+            {netCommissions.length > 0 && totalFees > 0 && (
+              <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm overflow-hidden">
+                <div className="px-4 py-3 bg-[#0E3D40]">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Bersih per Pengurus</h3>
+                </div>
+                <div className="divide-y divide-[#E8DDC9]/50">
+                  {netCommissions.map(c => (
+                    <div key={c.uid} className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold text-[#0E3D40]">{c.name}</span>
+                      <div className="text-right">
+                        <div className="text-[10px] text-[#6B8079]">Rp {fmt(c.amount)} - Rp {fmt(c.fee_share)}</div>
+                        <div className="text-xs font-bold text-[#0E3D40] font-mono">Rp {fmt(c.net_amount)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Kanan: Form Catat */}

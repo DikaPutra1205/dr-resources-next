@@ -71,6 +71,14 @@ export interface ResourcePrice {
   price_per_million: number;
 }
 
+export interface TransactionFeeDeduction {
+  id: number;
+  transaction_id: number;
+  label: string;
+  amount: number;
+  created_at: string;
+}
+
 export interface Transaction {
   id: number;
   created_by: string;
@@ -92,6 +100,7 @@ export interface Transaction {
   // Relations
   creator?: Profile;
   contributions?: TransactionContribution[];
+  fee_deductions?: TransactionFeeDeduction[];
 }
 
 export interface TransactionContribution {

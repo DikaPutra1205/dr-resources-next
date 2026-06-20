@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { Profile } from '@/lib/types';
 import { Shield, Loader2, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,10 +30,13 @@ export default function UsersPage() {
   async function handleRoleChange(id: string, newRole: string) {
     if (!confirm(`Ubah role user ini menjadi ${newRole}?`)) return;
     
+    const oldRole = users.find(u => u.id === id)?.role;
+    
     // Optimistic UI update
     setUsers(users.map(u => u.id === id ? { ...u, role: newRole as any } : u));
     
     await supabase.from('profiles').update({ role: newRole }).eq('id', id);
+    await log('user.role_update', { target_user_id: id, old_role: oldRole, new_role: newRole });
   }
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[#2BB673]" /></div>;

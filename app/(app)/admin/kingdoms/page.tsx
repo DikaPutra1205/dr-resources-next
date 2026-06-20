@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { Kingdom } from '@/lib/types';
 import { Plus, Edit2, Trash2, Loader2, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -42,8 +43,10 @@ export default function KingdomsPage() {
 
     if (formKingdom.id) {
       await supabase.from('kingdoms').update(payload).eq('id', formKingdom.id);
+      await log('kingdom.update', { kingdom_id: formKingdom.id, ...payload });
     } else {
       await supabase.from('kingdoms').insert(payload);
+      await log('kingdom.create', payload);
     }
 
     setSaving(false);
@@ -54,6 +57,7 @@ export default function KingdomsPage() {
   async function handleDelete(id: number) {
     if (!confirm('Yakin ingin menghapus kingdom ini? Akun yang terkait akan menjadi "Tanpa Kingdom".')) return;
     await supabase.from('kingdoms').delete().eq('id', id);
+    await log('kingdom.delete', { kingdom_id: id });
     fetchData();
   }
 

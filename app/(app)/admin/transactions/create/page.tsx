@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, X, Upload, Plus, Trash2, Users, TrendingUp, Loader2, Coins } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
+import { fmt, formatInput, parseShorthand, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 
 type ResourceKey = 'food' | 'wood' | 'stone' | 'gold';
 const RES: ResourceKey[] = ['food', 'wood', 'stone', 'gold'];
@@ -26,9 +27,14 @@ interface CommissionEntry {
   rate: string; // Rp per juta (editable)
 }
 
+interface FeeDeduction {
+  tempId: string;
+  label: string;
+  amount: string;
+}
+
 function parseNum(val: string): number {
-  const n = parseFloat(val.replace(/,/g, ''));
-  return isNaN(n) ? 0 : n;
+  return parseShorthand(val);
 }
 
 export default function ManualTransactionPage() {
@@ -58,6 +64,9 @@ export default function ManualTransactionPage() {
 
   // Commissions (per admin, with rate)
   const [commissions, setCommissions] = useState<CommissionEntry[]>([]);
+
+  // Fee deductions (e.g., PayPal, transfer bank)
+  const [feeDeductions, setFeeDeductions] = useState<FeeDeduction[]>([]);
 
   // Image (required)
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -144,6 +153,17 @@ export default function ManualTransactionPage() {
     setCommissions(p => p.map(c => c.uid === uid ? { ...c, rate: val } : c));
   }
 
+  // --- Fee deduction helpers ---
+  function addFeeDeduction() {
+    setFeeDeductions(p => [...p, { tempId: crypto.randomUUID(), label: '', amount: '' }]);
+  }
+  function updateFeeDeduction(tempId: string, field: keyof FeeDeduction, val: string) {
+    setFeeDeductions(p => p.map(f => f.tempId === tempId ? { ...f, [field]: val } : f));
+  }
+  function removeFeeDeduction(tempId: string) {
+    setFeeDeductions(p => p.filter(f => f.tempId !== tempId));
+  }
+
   // --- Derived values ---
   const rateNum = useMemo(() => ({
     food: parseNum(rates.food),
@@ -153,11 +173,11 @@ export default function ManualTransactionPage() {
   }), [rates]);
 
   function contribValue(c: Contributor): number {
-    return RES.reduce((sum, r) => sum + parseNum(c[r]) * rateNum[r], 0);
+    return RES.reduce((sum, r) => sum + (parseNum(c[r]) / 1_000_000) * rateNum[r], 0);
   }
 
-  // Total resources in millions across all contributors
-  const totalResourceMil = useMemo(() =>
+  // Total resources in actual units across all contributors
+  const totalResourceUnits = useMemo(() =>
     contributors.reduce((sum, c) => sum + RES.reduce((s, r) => s + parseNum(c[r]), 0), 0),
     [contributors]
   );
@@ -167,17 +187,41 @@ export default function ManualTransactionPage() {
     [contributors, rateNum]
   );
 
+  const activeCommissions = useMemo(() =>
+    commissions.filter(c => parseNum(c.rate) > 0),
+    [commissions]
+  );
+
   const commissionCalcs = useMemo(() =>
-    commissions.map(c => ({
+    activeCommissions.map(c => ({
       ...c,
-      amount: totalResourceMil * parseNum(c.rate),
+      amount: (totalResourceUnits / 1_000_000) * parseNum(c.rate),
     })),
-    [commissions, totalResourceMil]
+    [activeCommissions, totalResourceUnits]
   );
 
   const totalCommission = useMemo(
     () => commissionCalcs.reduce((s, c) => s + c.amount, 0),
     [commissionCalcs]
+  );
+
+  const totalFees = useMemo(
+    () => feeDeductions.reduce((s, f) => s + parseNum(f.amount), 0),
+    [feeDeductions]
+  );
+
+  const feePerAdmin = useMemo(
+    () => activeCommissions.length > 0 ? totalFees / activeCommissions.length : 0,
+    [totalFees, activeCommissions]
+  );
+
+  const netCommissions = useMemo(() =>
+    commissionCalcs.map(c => ({
+      ...c,
+      fee_share: feePerAdmin,
+      net_amount: c.amount - feePerAdmin,
+    })),
+    [commissionCalcs, feePerAdmin]
   );
 
   const grandTotal = totalContribValue + totalCommission;
@@ -214,7 +258,7 @@ export default function ManualTransactionPage() {
       const kd = kingdoms.find(k => k.id.toString() === kingdomId);
 
       const totalReceived = { food: 0, wood: 0, stone: 0, gold: 0 };
-      validContribs.forEach(c => RES.forEach(r => { totalReceived[r] += parseNum(c[r]) * 1_000_000; }));
+      validContribs.forEach(c => RES.forEach(r => { totalReceived[r] += parseNum(c[r]); }));
 
       const { data: tx, error: txErr } = await supabase.from('transactions').insert({
         created_by: user.id,
@@ -240,10 +284,10 @@ export default function ManualTransactionPage() {
       const contribRows = validContribs.map(c => ({
         transaction_id: tx.id,
         user_id: c.uid,
-        food_received: Math.round(parseNum(c.food) * 1_000_000),
-        wood_received: Math.round(parseNum(c.wood) * 1_000_000),
-        stone_received: Math.round(parseNum(c.stone) * 1_000_000),
-        gold_received: Math.round(parseNum(c.gold) * 1_000_000),
+        food_received: Math.round(parseNum(c.food)),
+        wood_received: Math.round(parseNum(c.wood)),
+        stone_received: Math.round(parseNum(c.stone)),
+        gold_received: Math.round(parseNum(c.gold)),
       }));
       const { error: cErr } = await supabase.from('transaction_contributions').insert(contribRows);
       if (cErr) throw cErr;
@@ -261,6 +305,19 @@ export default function ManualTransactionPage() {
         if (commErr) throw commErr;
       }
 
+      // Insert fee deductions
+      const validFees = feeDeductions.filter(f => f.label.trim() && parseNum(f.amount) > 0);
+      if (validFees.length > 0) {
+        const feeRows = validFees.map(f => ({
+          transaction_id: tx.id,
+          label: f.label.trim(),
+          amount: parseNum(f.amount),
+        }));
+        const { error: feeErr } = await supabase.from('transaction_fee_deductions').insert(feeRows);
+        if (feeErr) throw feeErr;
+      }
+
+      await log('transaction.create', { transaction_id: tx.id, to_name: toName.trim(), grand_total: grandTotal, kingdom: kd?.name || null });
       router.push('/transactions');
     } catch (err: any) {
       alert('Gagal menyimpan: ' + err.message);
@@ -429,13 +486,11 @@ export default function ManualTransactionPage() {
                             <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', RESOURCE_DOT[res])} />
                             {RESOURCE_LABELS[res]}
                           </label>
-                          <div className="relative">
-                            <input type="number" value={c[res]}
-                              onChange={e => updateContributor(c.tempId, res, e.target.value)}
-                              placeholder="0"
-                              className="w-full input font-mono text-sm py-1.5 pr-6" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#6B8079]/60 pointer-events-none">M</span>
-                          </div>
+                          <input type="text" inputMode="numeric"
+                            value={formatInput(c[res])}
+                            onChange={e => updateContributor(c.tempId, res, e.target.value.replace(/\D/g, ''))}
+                            placeholder="0"
+                            className="w-full input font-mono text-sm py-1.5" />
                         </div>
                       ))}
                     </div>
@@ -450,10 +505,10 @@ export default function ManualTransactionPage() {
                   {RES.map(res => resTotals[res] > 0 ? (
                     <div key={res} className="flex items-center gap-1">
                       <div className={cn('w-1.5 h-1.5 rounded-full', RESOURCE_DOT[res])} />
-                      <span className="text-xs font-mono font-bold text-[#0E3D40]">{resTotals[res]}M</span>
+                      <span className="text-xs font-mono font-bold text-[#0E3D40]">{fmt(resTotals[res])}</span>
                     </div>
                   ) : null)}
-                  <span className="text-[10px] text-[#6B8079]">= {fmt(totalResourceMil)}M total</span>
+                  <span className="text-[10px] text-[#6B8079]">= {fmt(totalResourceUnits)} total</span>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-[10px] text-[#6B8079] font-medium uppercase tracking-wider">Total Kontribusi</div>
@@ -468,7 +523,7 @@ export default function ManualTransactionPage() {
             <div className="flex items-center gap-2 px-5 py-3.5 bg-[#FAF5EA] border-b border-[#E8DDC9]">
               <Coins className="w-4 h-4 text-[#D9745A]" />
               <h3 className="text-sm font-bold text-[#0E3D40]">Komisi Pengurus</h3>
-              <span className="text-[10px] text-[#6B8079]">({fmt(totalResourceMil)}M × rate)</span>
+              <span className="text-[10px] text-[#6B8079]">({fmt(totalResourceUnits / 1_000_000)}jt × rate)</span>
             </div>
 
             {commissions.length === 0 ? (
@@ -508,6 +563,85 @@ export default function ManualTransactionPage() {
             )}
           </div>
 
+          {/* Potongan Biaya */}
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 bg-[#D9745A]/10 border-b border-[#D9745A]/20">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-[#D9745A]">Potongan Biaya</span>
+                <span className="text-[10px] text-[#6B8079]">dibagi rata ke {activeCommissions.length} pengurus</span>
+              </div>
+              <button onClick={addFeeDeduction}
+                className="flex items-center gap-1.5 text-xs font-bold text-[#D9745A] bg-[#D9745A]/10 hover:bg-[#D9745A]/20 px-3 py-1.5 rounded-lg transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            </div>
+            {feeDeductions.length === 0 ? (
+              <div className="px-5 py-6 text-center text-sm text-[#6B8079]">
+                Belum ada potongan biaya. (Opsional — tambahkan biaya PayPal, transfer bank, dll.)
+              </div>
+            ) : (
+              <div className="divide-y divide-[#E8DDC9]/50">
+                {feeDeductions.map(f => (
+                  <div key={f.tempId} className="flex items-center gap-3 px-5 py-3">
+                    <input type="text" value={f.label}
+                      onChange={e => updateFeeDeduction(f.tempId, 'label', e.target.value)}
+                      placeholder="Label (mis: Biaya PayPal)"
+                      className="flex-1 input py-2 text-sm" />
+                    <div className="relative w-36">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-[#6B8079]">Rp</span>
+                      <input type="text" inputMode="numeric" value={formatInput(f.amount)}
+                        onChange={e => updateFeeDeduction(f.tempId, 'amount', e.target.value.replace(/\D/g, ''))}
+                        placeholder="0"
+                        className="w-full input font-mono text-sm py-2 pl-8 text-right" />
+                    </div>
+                    <button onClick={() => removeFeeDeduction(f.tempId)}
+                      className="p-1.5 text-[#6B8079] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {totalFees > 0 && (
+              <div className="px-5 py-3 bg-[#FAF5EA] border-t border-[#E8DDC9] flex items-center justify-between">
+                <span className="text-xs text-[#6B8079] font-medium">Total Potongan</span>
+                <span className="font-mono font-bold text-[#D9745A]">Rp {fmt(totalFees)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Ringkasan Bersih per Pengurus */}
+          {netCommissions.length > 0 && totalFees > 0 && (
+            <div className="card overflow-hidden">
+              <div className="px-5 py-3.5 bg-[#0E3D40] border-b border-[#0E3D40]">
+                <h3 className="text-sm font-bold text-white">Ringkasan Bersih Pengurus</h3>
+              </div>
+              <div className="divide-y divide-[#E8DDC9]/50">
+                {netCommissions.map(c => (
+                  <div key={c.uid} className="flex items-center justify-between px-5 py-3 hover:bg-[#FAF5EA]/50 transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 rounded-full bg-[#0E3D40]/10 flex items-center justify-center">
+                        <span className="text-[9px] font-black text-[#0E3D40]">{c.name.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <span className="font-semibold text-[#0E3D40] text-sm">{c.name}</span>
+                    </div>
+                    <div className="text-right space-y-0.5">
+                      <div className="text-xs font-mono text-[#6B8079]">
+                        Komisi: Rp {fmt(c.amount)}
+                      </div>
+                      <div className="text-[10px] font-mono text-[#D9745A]">
+                        Potongan: -Rp {fmt(c.fee_share)}
+                      </div>
+                      <div className="text-sm font-mono font-bold text-[#0E3D40]">
+                        Bersih: Rp {fmt(c.net_amount)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Grand Total */}
           <div className="card p-5 bg-[#0E3D40]">
             <div className="flex items-start justify-between">
@@ -522,6 +656,12 @@ export default function ManualTransactionPage() {
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-white/60">Komisi</span>
                     <span className="font-mono text-sm font-bold text-[#2BB673]">+ Rp {fmt(totalCommission)}</span>
+                  </div>
+                )}
+                {totalFees > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-white/60">Potongan</span>
+                    <span className="font-mono text-sm font-bold text-[#D9745A]">- Rp {fmt(totalFees)}</span>
                   </div>
                 )}
               </div>

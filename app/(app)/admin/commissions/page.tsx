@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { log } from '@/lib/logger';
 import { Kingdom, Profile } from '@/lib/types';
 import { Loader2, Save, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -86,8 +87,12 @@ export default function CommissionsPage() {
       .upsert(upserts, { onConflict: 'kingdom_id,user_id' });
 
     setSaving(false);
-    if (!error) alert('Komisi berhasil disimpan!');
-    else alert('Gagal menyimpan: ' + error.message);
+    if (!error) {
+      await log('commission.update', { kingdom_count: kingdoms.length, admin_count: admins.length });
+      alert('Komisi berhasil disimpan!');
+    } else {
+      alert('Gagal menyimpan: ' + error.message);
+    }
     fetchData();
   }
 
