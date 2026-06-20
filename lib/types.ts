@@ -149,6 +149,8 @@ export interface AccountCalcData {
   tax_rate: number;
   capacity_per_trip: number;
   resources: Record<ResourceType, ResourceData>;
+  /** Pre-computed sequential trip breakdown from calculateSmart */
+  tripPlan?: any[];
 }
 
 export interface CalcTotals {

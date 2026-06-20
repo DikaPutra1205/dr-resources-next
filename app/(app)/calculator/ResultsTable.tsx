@@ -336,7 +336,28 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
               {accountsData.map((accData: AccountCalcData) => {
                 const isUsed = RESOURCES.some(res => accData.resources[res].required_gross > 0);
                 if (!isUsed) return null;
-                const maxTrips = Math.max(...RESOURCES.map(r => accData.resources[r].trips));
+                const tp = accData.tripPlan;
+                const totalTrips = tp?.length || 0;
+
+                function resTripInfo(res: string): string {
+                  if (!tp) return '';
+                  let count = 0;
+                  let lastAmt = 0;
+                  let isPartial = false;
+                  for (let i = tp.length - 1; i >= 0; i--) {
+                    const r = tp[i].resources[res];
+                    if (!r) continue;
+                    count++;
+                    if (count === 1) {
+                      lastAmt = r.net;
+                      isPartial = r.net < accData.capacity_per_trip || Object.keys(tp[i].resources).length > 1;
+                    }
+                  }
+                  if (count === 0) return '';
+                  if (isPartial) return `${count}× (last ${fmt(lastAmt)})`;
+                  return `${count}×`;
+                }
+
                 return (
                   <tr key={accData.account.id} className="hover:bg-[#FAF5EA]/20 transition-colors">
                     <td className="py-2.5 px-3">
@@ -355,26 +376,20 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                         <td key={res} className="py-2.5 px-3 text-right whitespace-nowrap font-medium font-mono">
                           <span className="text-[#2BB673] font-bold block">+{fmt(r.required_net)}</span>
                           <span className="text-[9px] text-[#6B8079]/75 block">Gross: {fmt(r.required_gross)}</span>
+                          <span className="text-[8px] text-[#0E3D40]/60 block mt-0.5">{resTripInfo(res)}</span>
                         </td>
                       );
                     })}
-                    <td className="py-2.5 px-3 text-center font-bold text-[#0E3D40]">{maxTrips}</td>
                     <td className="py-2.5 px-3 text-center">
-                      {maxTrips > 0 ? (
+                      <div className="font-bold text-[#0E3D40]">{totalTrips} trip</div>
+                      {totalTrips > 0 && (
                         <button type="button" onClick={() => {
-                          const assignedNet = {
-                            food: accData.resources.food.required_net,
-                            wood: accData.resources.wood.required_net,
-                            stone: accData.resources.stone.required_net,
-                            gold: accData.resources.gold.required_net,
-                          };
-                          const details = calculateSequentialTrips(assignedNet, accData.capacity_per_trip, accData.tax_rate);
-                          setActiveTripDetails(details);
+                          setActiveTripDetails(tp || null);
                           setShowTripModal(true);
-                        }} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-[#E8DDC9] hover:bg-[#FAF5EA] text-[#0E3D40] font-bold text-[10px] transition-colors cursor-pointer">
-                          Detail Trip
+                        }} className="mt-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-[#E8DDC9] hover:bg-[#FAF5EA] text-[#0E3D40] font-bold text-[9px] transition-colors cursor-pointer">
+                          Detail
                         </button>
-                      ) : <span className="text-[#6B8079]/30">-</span>}
+                      )}
                     </td>
                   </tr>
                 );

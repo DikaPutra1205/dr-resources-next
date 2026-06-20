@@ -328,6 +328,17 @@ export function calculateSmart(
     }
   }
 
+  // Compute sequential trip plans per account
+  for (const accData of accountsData) {
+    const hasAny = RES_ORDER.some(r => accData.resources[r].required_net > 0);
+    if (!hasAny) continue;
+    accData.tripPlan = calculateSequentialTrips(
+      { food: accData.resources.food.required_net, wood: accData.resources.wood.required_net, stone: accData.resources.stone.required_net, gold: accData.resources.gold.required_net },
+      accData.capacity_per_trip,
+      accData.tax_rate,
+    );
+  }
+
   // Warnings for unmet targets
   for (const res of RES_ORDER) {
     if (targets[res] <= 0) continue;
@@ -491,6 +502,17 @@ export function calculateManual(
       }
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
+  }
+
+  // Compute sequential trip plans per account
+  for (const accData of accountsData) {
+    const hasAny = RESOURCES.some(r => accData.resources[r].required_net > 0);
+    if (!hasAny) continue;
+    accData.tripPlan = calculateSequentialTrips(
+      { food: accData.resources.food.required_net, wood: accData.resources.wood.required_net, stone: accData.resources.stone.required_net, gold: accData.resources.gold.required_net },
+      accData.capacity_per_trip,
+      accData.tax_rate,
+    );
   }
 
   const totals = sumTotals(accountsData, prices);
