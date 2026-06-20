@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, User, Calendar, MapPin, Receipt, ArrowRight, ImageIcon, TrendingUp, Users } from 'lucide-react';
-import Image from 'next/image';
+import { ArrowLeft, MapPin, Receipt, ArrowRight, ImageIcon, TrendingUp, Users, Wallet } from 'lucide-react';
 import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
 
@@ -14,7 +13,6 @@ export default async function TransactionDetailPage({ params }: { params: Promis
     .from('transactions')
     .select(`
       *,
-      creator:profiles(name),
       contributions:transaction_contributions(
         *,
         profile:profiles(name)
@@ -45,7 +43,49 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   const allCommissions = (tx.commissions || []) as any[];
   const totalCommission = allCommissions.reduce((s: number, c: any) => s + Number(c.amount), 0);
   const feePerAdmin = allCommissions.length > 0 ? totalFees / allCommissions.length : 0;
-  const totalContrib = Number(tx.total_estimated_value) - totalCommission;
+
+  const allContributions = (tx.contributions || []) as any[];
+  const totalContrib = allContributions.reduce((s, c) => {
+    return s + RESOURCES.reduce((s2, res) => {
+      return s2 + (Number(c[`${res}_received`]) / 1_000_000) * rates[res];
+    }, 0);
+  }, 0);
+
+  const netGrandTotal = totalContrib + totalCommission - totalFees;
+
+  // Build rincian transfer: merge contributors + commissions by user_id
+  const transferMap = new Map<string, { name: string; contrib: number; comm: number; feeShare: number }>();
+
+  allContributions.forEach((c: any) => {
+    const uid = c.user_id;
+    const cVal = RESOURCES.reduce((s, res) => s + (Number(c[`${res}_received`]) / 1_000_000) * rates[res], 0);
+    const existing = transferMap.get(uid);
+    if (existing) {
+      existing.contrib += cVal;
+    } else {
+      transferMap.set(uid, { name: c.profile?.name || 'Unknown', contrib: cVal, comm: 0, feeShare: 0 });
+    }
+  });
+
+  allCommissions.forEach((c: any) => {
+    const uid = c.user_id;
+    const amt = Number(c.amount);
+    const existing = transferMap.get(uid);
+    if (existing) {
+      existing.comm += amt;
+      existing.feeShare += feePerAdmin;
+    } else {
+      transferMap.set(uid, { name: c.profile?.name || 'Unknown', contrib: 0, comm: amt, feeShare: feePerAdmin });
+    }
+  });
+
+  const transferEntries = Array.from(transferMap.entries())
+    .map(([uid, data]) => ({
+      uid,
+      ...data,
+      total: data.contrib + data.comm - data.feeShare,
+    }))
+    .filter(e => e.total > 0);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
@@ -66,22 +106,12 @@ export default async function TransactionDetailPage({ params }: { params: Promis
       {/* Top row: Info + Rates + Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        {/* Info */}
+        {/* Detail */}
         <div className="card p-5 space-y-4">
           <h3 className="text-[10px] font-bold text-[#5C6E6E] uppercase tracking-wider flex items-center gap-2">
             <Receipt className="w-3.5 h-3.5 text-[#2BB673]" /> Detail
           </h3>
           <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full bg-[#0E3D40]/5 flex items-center justify-center shrink-0 mt-0.5">
-                <User className="w-3.5 h-3.5 text-[#0E3D40]" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Kasir</p>
-                <p className="font-semibold text-[#0E3D40] text-sm">{tx.creator?.name || 'Unknown'}</p>
-              </div>
-            </div>
-
             <div className="flex items-start gap-3">
               <div className="w-7 h-7 rounded-full bg-[#D9745A]/10 flex items-center justify-center shrink-0 mt-0.5">
                 <ArrowRight className="w-3.5 h-3.5 text-[#D9745A]" />
@@ -129,7 +159,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
           )}
         </div>
 
-        {/* Grand Total */}
+        {/* Ringkasan Nilai */}
         <div className="card p-5 bg-[#0E3D40] space-y-3">
           <h3 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Ringkasan Nilai</h3>
           <div className="space-y-2">
@@ -150,15 +180,15 @@ export default async function TransactionDetailPage({ params }: { params: Promis
               </div>
             )}
             <div className="border-t border-white/10 pt-2 mt-1 flex items-end justify-between">
-              <span className="text-[10px] text-white/50 uppercase tracking-wider font-bold">Grand Total</span>
-              <span className="font-mono text-xl font-black text-white">Rp {fmt(tx.total_estimated_value)}</span>
+              <span className="text-[10px] text-white/50 uppercase tracking-wider font-bold">Total Bersih</span>
+              <span className="font-mono text-xl font-black text-white">Rp {fmt(netGrandTotal)}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Kontributor */}
-      {tx.contributions && tx.contributions.length > 0 && (
+      {allContributions.length > 0 && (
         <div className="card overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3.5 bg-[#0E3D40] border-b border-[#0E3D40]">
             <Users className="w-4 h-4 text-white/70" />
@@ -181,7 +211,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
                 </tr>
               </thead>
               <tbody>
-                {tx.contributions.map((c: any, idx: number) => {
+                {allContributions.map((c: any, idx: number) => {
                   const cVal = RESOURCES.reduce((s, res) => {
                     const mil = Number(c[`${res}_received`]) / 1_000_000;
                     return s + mil * rates[res];
@@ -189,7 +219,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
                   return (
                     <tr key={c.id} className={cn(
                       'hover:bg-[#FAF5EA]/50 transition-colors',
-                      idx !== tx.contributions.length - 1 && 'border-b border-[#E8DDC9]/50'
+                      idx !== allContributions.length - 1 && 'border-b border-[#E8DDC9]/50'
                     )}>
                       <td className="py-3 px-5">
                         <span className="font-bold text-[#0E3D40]">{c.profile?.name || 'Unknown'}</span>
@@ -266,33 +296,43 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         </div>
       )}
 
-      {/* Ringkasan Bersih per Pengurus */}
-      {allCommissions.length > 0 && totalFees > 0 && (
+      {/* Rincian Transfer */}
+      {transferEntries.length > 0 && (
         <div className="card overflow-hidden">
-          <div className="px-5 py-3.5 bg-[#0E3D40]">
-            <h3 className="text-sm font-bold text-white">Bersih per Pengurus</h3>
+          <div className="px-5 py-3.5 bg-[#0E3D40] border-b border-[#0E3D40]">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-white/70" />
+              <h3 className="text-sm font-bold text-white">Rincian Transfer</h3>
+            </div>
+            <p className="text-[10px] text-white/50 mt-0.5">Total yang harus ditransfer ke masing-masing penerima</p>
           </div>
           <div className="divide-y divide-[#E8DDC9]/50">
-            {allCommissions.map((c: any) => {
-              const netAmount = Number(c.amount) - feePerAdmin;
-              return (
-                <div key={c.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#FAF5EA]/50 transition-colors">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-[#0E3D40]/10 flex items-center justify-center">
-                      <span className="text-[9px] font-black text-[#0E3D40]">
-                        {(c.profile?.name || '?').charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="font-semibold text-[#0E3D40] text-sm">{c.profile?.name || 'Unknown'}</span>
+            {transferEntries.map(e => (
+              <div key={e.uid} className="flex items-center justify-between px-5 py-3.5 hover:bg-[#FAF5EA]/50 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-[#0E3D40]/10 flex items-center justify-center shrink-0">
+                    <span className="text-[10px] font-black text-[#0E3D40]">{e.name.charAt(0)}</span>
                   </div>
-                  <div className="text-right space-y-0.5">
-                    <div className="text-xs font-mono text-[#6B8079]">Komisi: Rp {fmt(c.amount)}</div>
-                    <div className="text-[10px] font-mono text-[#D9745A]">Potongan: -Rp {fmt(feePerAdmin)}</div>
-                    <div className="text-sm font-mono font-bold text-[#0E3D40]">Bersih: Rp {fmt(netAmount)}</div>
+                  <div>
+                    <span className="font-semibold text-[#0E3D40] text-sm">{e.name}</span>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      {e.contrib > 0 && (
+                        <span className="text-[10px] font-mono text-[#2BB673]">Kontribusi: Rp {fmt(e.contrib)}</span>
+                      )}
+                      {e.comm > 0 && (
+                        <span className="text-[10px] font-mono text-[#D9745A]">Komisi: Rp {fmt(e.comm)}</span>
+                      )}
+                      {e.feeShare > 0 && (
+                        <span className="text-[10px] font-mono text-red-400">Potongan: -Rp {fmt(e.feeShare)}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+                <div className="text-right shrink-0">
+                  <div className="font-mono font-black text-[#0E3D40]">Rp {fmt(e.total)}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -304,12 +344,11 @@ export default async function TransactionDetailPage({ params }: { params: Promis
             <ImageIcon className="w-3.5 h-3.5" /> Bukti Transfer
           </h3>
           <a href={tx.image_url} target="_blank" rel="noopener noreferrer">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={tx.image_url}
               alt="Bukti Transfer"
-              width={800}
-              height={600}
-              className="rounded-xl border border-[#E8DDC9] object-cover w-full max-h-[400px] hover:opacity-90 transition-opacity cursor-zoom-in"
+              className="rounded-xl border border-[#E8DDC9] w-full object-contain max-h-[500px] hover:opacity-90 transition-opacity cursor-zoom-in"
             />
           </a>
         </div>

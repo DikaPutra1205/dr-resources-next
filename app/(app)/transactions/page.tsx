@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { Eye, ArrowRight, Plus, MapPin } from 'lucide-react';
+import { Eye, Plus, MapPin } from 'lucide-react';
 import { cn, fmt, RESOURCES, RESOURCE_DOT } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
 
@@ -13,10 +13,7 @@ export default async function TransactionsPage() {
 
   const { data } = await supabase
     .from('transactions')
-    .select(`
-      *,
-      creator:profiles(name)
-    `)
+    .select('*')
     .order('created_at', { ascending: false });
 
   const transactions = (data || []) as any[];
@@ -70,10 +67,8 @@ export default async function TransactionsPage() {
                       </span>
                     </div>
 
-                    {/* Tujuan + Pengirim */}
+                    {/* Tujuan */}
                     <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs text-[#6B8079]">{tx.creator?.name || 'Unknown'}</span>
-                      <ArrowRight className="w-3 h-3 text-[#D9745A] shrink-0" />
                       <span className="font-bold text-[#0E3D40] text-sm">{tx.to_name}</span>
                     </div>
                     {tx.notes && (
