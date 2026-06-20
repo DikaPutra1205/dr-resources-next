@@ -323,6 +323,7 @@ export function calculateSmart(
         const grossNeeded = Math.ceil(net * (1 + accData.tax_rate));
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
         r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
+        r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
       }
     }
   }
