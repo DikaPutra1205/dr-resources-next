@@ -216,7 +216,7 @@ export default function NetStockPage() {
             </div>
 
             {/* Owner & Account List */}
-            <div className="divide-y divide-[#E8DDC9]/50">
+            <div className="flex flex-col gap-3 p-3">
               {Array.from(ownerMap.entries()).map(([userId, { label: ownerName, accounts: ownerAccs }]) => {
                 const isCollapsed = collapsedOwners.has(userId);
 
@@ -232,30 +232,30 @@ export default function NetStockPage() {
                 });
 
                 return (
-                  <div key={userId}>
+                  <div key={userId} className="rounded-xl border border-[#E8DDC9] overflow-hidden shadow-sm">
                     {/* Owner Header (collapsible) */}
                     <button
                       type="button"
                       onClick={() => toggleOwner(userId)}
-                      className="w-full flex items-center gap-3 px-4 py-3 bg-[#FAF5EA]/60 hover:bg-[#FAF5EA] transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3.5 bg-[#0E3D40] hover:bg-[#0E3D40]/90 transition-colors text-left"
                     >
-                      <div className="w-7 h-7 rounded-full bg-[#0E3D40]/10 flex items-center justify-center shrink-0">
-                        <Users className="w-3.5 h-3.5 text-[#0E3D40]" />
+                      <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+                        <Users className="w-3.5 h-3.5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-[#0E3D40] text-sm">{ownerName}</div>
-                        <div className="text-[10px] text-[#6B8079]">{ownerAccs.length} akun · Rp {fmt(ownerValue)}</div>
+                        <div className="font-bold text-white text-sm">{ownerName}</div>
+                        <div className="text-[10px] text-white/60">{ownerAccs.length} akun · Rp {fmt(ownerValue)}</div>
                       </div>
                       {/* Owner totals inline */}
                       <div className="hidden sm:flex items-center gap-4 mr-3">
                         {RESOURCES.map(res => ownerNet[res] > 0 ? (
                           <div key={res} className="text-right">
-                            <div className={cn("text-[8px] font-bold uppercase", RESOURCE_DOT[res].replace('bg-', 'text-'))}>{RESOURCE_LABELS[res]}</div>
-                            <div className="text-xs font-mono font-bold text-[#0E3D40]">{fmt(ownerNet[res])}</div>
+                            <div className={cn("text-[8px] font-bold uppercase text-white/50")}>{RESOURCE_LABELS[res]}</div>
+                            <div className="text-xs font-mono font-bold text-white">{fmt(ownerNet[res])}</div>
                           </div>
                         ) : null)}
                       </div>
-                      {isCollapsed ? <ChevronRight className="w-4 h-4 text-[#6B8079] shrink-0" /> : <ChevronDown className="w-4 h-4 text-[#6B8079] shrink-0" />}
+                      {isCollapsed ? <ChevronRight className="w-4 h-4 text-white/60 shrink-0" /> : <ChevronDown className="w-4 h-4 text-white/60 shrink-0" />}
                     </button>
 
                     {/* Individual Game Accounts */}
@@ -263,8 +263,8 @@ export default function NetStockPage() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-[#FAF5EA]/30 text-[#6B8079] text-[10px] uppercase tracking-wider border-b border-[#E8DDC9]/50">
-                              <th className="py-2 px-4 pl-16">Akun</th>
+                            <tr className="bg-[#FAF5EA] text-[#6B8079] text-[10px] uppercase tracking-wider border-b border-[#E8DDC9]">
+                              <th className="py-2 px-4 pl-12">Akun</th>
                               <th className="py-2 px-3 text-center">TP/SH</th>
                               {RESOURCES.map(res => (
                                 <th key={res} className="py-2 px-3 text-right">
@@ -288,8 +288,8 @@ export default function NetStockPage() {
                               });
 
                               return (
-                                <tr key={acc.id} className="hover:bg-[#FAF5EA]/20 transition-colors">
-                                  <td className="py-2.5 px-4 pl-16">
+                                <tr key={acc.id} className="bg-white hover:bg-[#F7FBF9] transition-colors border-b border-[#E8DDC9]/40 last:border-0">
+                                  <td className="py-2.5 px-4 pl-12">
                                     <div className="font-semibold text-[#0E3D40]">{acc.name}</div>
                                     <span className={cn("text-[8px] px-1 py-0.5 rounded uppercase tracking-wider border",
                                       acc.type === 'main' ? "bg-[#0E3D40]/5 border-[#0E3D40]/20 text-[#0E3D40]" : "bg-[#6B8079]/5 border-[#6B8079]/20 text-[#6B8079]"
@@ -313,19 +313,19 @@ export default function NetStockPage() {
                               );
                             })}
                             {/* Owner subtotal row */}
-                            <tr className="bg-[#FAF5EA]/40 border-t border-[#E8DDC9]/60 font-bold">
-                              <td className="py-2 px-4 pl-16 text-[10px] text-[#5C6E6E] uppercase tracking-wider" colSpan={2}>
-                                Subtotal {ownerName}
-                              </td>
-                              {RESOURCES.map(res => (
-                                <td key={res} className="py-2 px-3 text-right font-mono font-bold text-[#0E3D40] text-xs">
-                                  {ownerNet[res] > 0 ? fmt(ownerNet[res]) : '-'}
-                                </td>
-                              ))}
-                              <td className="py-2 px-3 text-right font-mono font-bold text-[#2BB673] text-xs">
-                                Rp {fmt(ownerValue)}
-                              </td>
-                            </tr>
+                            <tr className="bg-[#0E3D40]/5 border-t border-[#0E3D40]/10 font-bold">
+                               <td className="py-2 px-4 pl-12 text-[10px] text-[#0E3D40]/60 uppercase tracking-wider" colSpan={2}>
+                                 Subtotal
+                               </td>
+                               {RESOURCES.map(res => (
+                                 <td key={res} className="py-2 px-3 text-right font-mono font-bold text-[#0E3D40] text-xs">
+                                   {ownerNet[res] > 0 ? fmt(ownerNet[res]) : '-'}
+                                 </td>
+                               ))}
+                               <td className="py-2 px-3 text-right font-mono font-bold text-[#2BB673] text-xs">
+                                 Rp {fmt(ownerValue)}
+                               </td>
+                             </tr>
                           </tbody>
                         </table>
                       </div>
