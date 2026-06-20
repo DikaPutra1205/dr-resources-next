@@ -196,7 +196,201 @@ const STOREHOUSE_PROTECTION: Record<number, Record<ResourceType, number>> = {
   25: { food: 2500000, wood: 2500000, stone: 2500000, gold: 2500000 },
 };
 
-// ─── Calculator Logic ─────────────────────────────────────────────────────────
+// ─── Smart Greedy Drain + Owner Balance ─────────────────────────────────────
+
+export function calculateSmart(
+  accounts: GameAccount[],
+  targets: Record<ResourceType, number>,
+  prices: ResourcePrices,
+): { accountsData: AccountCalcData[]; totals: CalcTotals; warnings: string[] } {
+  const accountsData = buildAccountData(accounts);
+  const warnings: string[] = [];
+
+  const remaining: Record<ResourceType, number> = { ...targets };
+  const ownerTotalValue: Record<string, number> = {};
+  const totalCapacity: Record<string, number> = {};
+
+  for (const accData of accountsData) {
+    const ownerId = String((accData.account as any).user_id || '');
+    totalCapacity[ownerId] = (totalCapacity[ownerId] || 0) +
+      RESOURCES.reduce((s, r) => s + accData.resources[r].sendable_net, 0);
+  }
+
+  const assigned: Record<number, Record<ResourceType, number>> = {};
+  for (const accData of accountsData) {
+    assigned[accData.account.id] = { food: 0, wood: 0, stone: 0, gold: 0 };
+  }
+
+  const RES_ORDER: ResourceType[] = ['food', 'wood', 'stone', 'gold'];
+
+  // Greedy loop: pick best account each iteration
+  let anyRemaining = () => RES_ORDER.some(r => remaining[r] > 0);
+  let iter = 0;
+  const MAX_ITER = accountsData.length * 2 + 10;
+
+  while (anyRemaining() && iter < MAX_ITER) {
+    iter++;
+    let bestAcc: AccountCalcData | null = null;
+    let bestScore = -Infinity;
+    let bestAssignment: Record<ResourceType, number> = { food: 0, wood: 0, stone: 0, gold: 0 };
+
+    for (const accData of accountsData) {
+      const ownerId = String((accData.account as any).user_id || '');
+      const a = assigned[accData.account.id];
+
+      // Check if this account can still contribute anything
+      let canContribute = false;
+      for (const res of RES_ORDER) {
+        if (remaining[res] <= 0) continue;
+        const avail = accData.resources[res].sendable_net - a[res];
+        if (avail > 0) { canContribute = true; break; }
+      }
+      if (!canContribute) continue;
+
+      // Compute how much we'd assign if we picked this account
+      const assign: Record<ResourceType, number> = { food: 0, wood: 0, stone: 0, gold: 0 };
+      for (const res of RES_ORDER) {
+        if (remaining[res] <= 0) continue;
+        const avail = accData.resources[res].sendable_net - a[res];
+        assign[res] = avail >= remaining[res] ? remaining[res] : avail;
+      }
+
+      const assignTotal = RES_ORDER.reduce((s, r) => s + assign[r], 0);
+      if (assignTotal <= 0) continue;
+
+      // Scoring
+      const foodTarget = targets.food || 1;
+      const foodScore = targets.food > 0 ? assign.food / Math.min(targets.food, remaining.food || 1) : 0;
+
+      // Full drain bonus: can this account be fully depleted for all needed resources?
+      let fullDrainScore = 0;
+      let allFull = true;
+      for (const res of RES_ORDER) {
+        const avail = accData.resources[res].sendable_net - a[res];
+        if (avail > 0 && assign[res] < avail) { allFull = false; break; }
+      }
+      if (allFull && assignTotal > 0) fullDrainScore = 10;
+
+      // Owner balance bonus
+      const ownerVal = ownerTotalValue[ownerId] || 0;
+      const maxOwnerVal = Math.max(1, ...Object.values(ownerTotalValue), 1);
+      const ownerBalanceScore = (1 - ownerVal / maxOwnerVal) * 8;
+
+      // Trip efficiency bonus
+      const maxCap = Math.max(1, ...accountsData.map(ad => ad.capacity_per_trip));
+      const tripEffScore = (accData.capacity_per_trip / maxCap) * 4;
+
+      // Weight: prefer accounts with more total capacity
+      const totalAccCapacity = RES_ORDER.reduce((s, r) => s + accData.resources[r].sendable_net, 0);
+      const capacityWeight = totalAccCapacity / Math.max(1, Math.max(...accountsData.map(ad =>
+        RES_ORDER.reduce((s, r) => s + ad.resources[r].sendable_net, 0)
+      )));
+
+      const score = foodScore * 6 + fullDrainScore + ownerBalanceScore + tripEffScore + capacityWeight * 3;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestAcc = accData;
+        bestAssignment = assign;
+      }
+    }
+
+    if (!bestAcc) break;
+
+    // Apply assignment
+    const ownerId = String((bestAcc.account as any).user_id || '');
+    const a = assigned[bestAcc.account.id];
+    let addedValue = 0;
+    for (const res of RES_ORDER) {
+      if (bestAssignment[res] <= 0) continue;
+      a[res] += bestAssignment[res];
+      addedValue += (bestAssignment[res] / 1_000_000) * (prices[res] || 0);
+      remaining[res] -= bestAssignment[res];
+      if (remaining[res] < 0) remaining[res] = 0;
+    }
+    ownerTotalValue[ownerId] = (ownerTotalValue[ownerId] || 0) + addedValue;
+  }
+
+  // Apply assignments to accountsData
+  for (const accData of accountsData) {
+    const a = assigned[accData.account.id];
+    for (const res of RES_ORDER) {
+      const r = accData.resources[res];
+      const net = a[res];
+      r.required_net = net;
+      if (net > 0) {
+        const grossNeeded = Math.ceil(net * (1 + accData.tax_rate));
+        r.required_gross = Math.min(grossNeeded, r.sendable_gross);
+        r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
+      }
+    }
+  }
+
+  // Warnings for unmet targets
+  for (const res of RES_ORDER) {
+    if (targets[res] <= 0) continue;
+    const assignedTotal = accountsData.reduce((s, ad) => s + ad.resources[res].required_net, 0);
+    if (assignedTotal < targets[res]) {
+      warnings.push(`Kapasitas bersih gabungan untuk ${res} (${assignedTotal.toLocaleString('id-ID')}) tidak mencukupi target (${targets[res].toLocaleString('id-ID')})!`);
+    }
+  }
+
+  return { accountsData, totals: sumTotals(accountsData, prices), warnings };
+}
+
+/** Sequential trip breakdown: one resource per trip, combine only on partial */
+export function calculateSequentialTrips(
+  assigned: Record<ResourceType, number>,
+  capacity: number,
+  taxRate: number,
+): any[] {
+  const remaining: Record<ResourceType, number> = { ...assigned };
+  const resources: ResourceType[] = ['food', 'wood', 'stone', 'gold'];
+  const trips: any[] = [];
+
+  for (let i = 0; i < resources.length; i++) {
+    const res = resources[i];
+    while (remaining[res] > 0) {
+      const trip: Record<string, any> = {};
+
+      if (remaining[res] >= capacity) {
+        trip[res] = {
+          net: capacity,
+          gross: Math.ceil(capacity * (1 + taxRate)),
+        };
+        remaining[res] -= capacity;
+      } else {
+        const netPart = remaining[res];
+        trip[res] = {
+          net: netPart,
+          gross: Math.ceil(netPart * (1 + taxRate)),
+        };
+        remaining[res] = 0;
+
+        let left = capacity - netPart;
+        for (let j = i + 1; j < resources.length && left > 0; j++) {
+          const nextRes = resources[j];
+          if (remaining[nextRes] <= 0) continue;
+          const take = Math.min(remaining[nextRes], left);
+          if (take > 0) {
+            trip[nextRes] = {
+              net: take,
+              gross: Math.ceil(take * (1 + taxRate)),
+            };
+            remaining[nextRes] -= take;
+            left -= take;
+          }
+        }
+      }
+
+      trips.push({ trip: trips.length + 1, resources: trip });
+    }
+  }
+
+  return trips;
+}
+
+// ─── Fair Share (legacy) ─────────────────────────────────────────────────────
 
 export function calculateFairShare(
   accounts: GameAccount[],

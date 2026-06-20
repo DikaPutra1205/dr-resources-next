@@ -6,7 +6,7 @@ import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt, formatInput, parseSh
 import { log } from '@/lib/logger';
 import { AlertTriangle, Info, Package, Loader2, Upload, X as XIcon, Coins, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { calculateTripBreakdown } from '@/lib/calculator';
+import { calculateSequentialTrips } from '@/lib/calculator';
 import Image from 'next/image';
 
 interface CommissionEntry {
@@ -362,9 +362,13 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                     <td className="py-2.5 px-3 text-center">
                       {maxTrips > 0 ? (
                         <button type="button" onClick={() => {
-                          const details = calculateTripBreakdown(accData.capacity_per_trip, accData.tax_rate,
-                            accData.resources.food.required_gross, accData.resources.wood.required_gross,
-                            accData.resources.stone.required_gross, accData.resources.gold.required_gross);
+                          const assignedNet = {
+                            food: accData.resources.food.required_net,
+                            wood: accData.resources.wood.required_net,
+                            stone: accData.resources.stone.required_net,
+                            gold: accData.resources.gold.required_net,
+                          };
+                          const details = calculateSequentialTrips(assignedNet, accData.capacity_per_trip, accData.tax_rate);
                           setActiveTripDetails(details);
                           setShowTripModal(true);
                         }} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-[#E8DDC9] hover:bg-[#FAF5EA] text-[#0E3D40] font-bold text-[10px] transition-colors cursor-pointer">
@@ -616,8 +620,8 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                               {resName}
                             </span>
                             <div className="text-right">
-                              <span className="font-bold text-[#0E3D40] font-mono">{fmt(resVal.sent)}</span>
-                              <span className="text-[9px] text-[#6B8079]/70 font-mono block">Net: {fmt(resVal.received)}</span>
+                          <span className="font-bold text-[#0E3D40] font-mono">{fmt(resVal.gross)}</span>
+                          <span className="text-[9px] text-[#6B8079]/70 font-mono block">Net: {fmt(resVal.net)}</span>
                             </div>
                           </div>
                         ))}

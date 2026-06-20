@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GameAccount, ResourcePrices, ResourceType, Profile, Kingdom } from '@/lib/types';
 import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, RESOURCE_BORDER, cn, parseShorthand, formatInput } from '@/lib/utils';
-import { calculateProportional, calculateFairShare, calculateManual } from '@/lib/calculator';
+import { calculateSmart, calculateManual } from '@/lib/calculator';
 import { Loader2, Calculator as CalcIcon, AlertTriangle } from 'lucide-react';
 import ResultsTable from './ResultsTable';
 
@@ -123,15 +123,15 @@ export default function CalculatorPage() {
 
     if (activeTab === 'single') {
       pool = allAccounts.filter(a => a.user_id === selectedUserId && (kingdomId === null || a.kingdom_id === kingdomId));
-      res = calculateProportional(pool, numericTargets, prices);
+      res = calculateSmart(pool, numericTargets, prices);
     } 
     else if (activeTab === 'selected') {
       pool = allAccounts.filter(a => selectedAccountIds.includes(a.id) && (kingdomId === null || a.kingdom_id === kingdomId));
-      res = calculateProportional(pool, numericTargets, prices);
+      res = calculateSmart(pool, numericTargets, prices);
     }
     else if (activeTab === 'multi') {
       pool = allAccounts.filter(a => multiUserIds.includes(a.user_id) && (kingdomId === null || a.kingdom_id === kingdomId));
-      res = calculateFairShare(pool, numericTargets, prices);
+      res = calculateSmart(pool, numericTargets, prices);
     }
     else if (activeTab === 'manual') {
       pool = allAccounts.filter(a => selectedAccountIds.includes(a.id) && (kingdomId === null || a.kingdom_id === kingdomId));
@@ -150,9 +150,9 @@ export default function CalculatorPage() {
   }
 
   const tabs = [
-    { id: 'single', label: 'Single User (Proporsional)' },
+    { id: 'single', label: 'Single User (Smart)' },
     { id: 'selected', label: 'Pilih Akun Tertentu' },
-    { id: 'multi', label: 'Multi Anggota (Fair-Share)' },
+    { id: 'multi', label: 'Multi Anggota (Smart)' },
     { id: 'manual', label: 'Manual Input (Net)' },
   ];
 
