@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, User, Calendar, MapPin, Receipt, ArrowRight, ImageIcon } from 'lucide-react';
+import { ArrowLeft, User, Calendar, MapPin, Receipt, ArrowRight, ImageIcon, TrendingUp, Users } from 'lucide-react';
 import Image from 'next/image';
 import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
@@ -17,7 +17,11 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
       creator:profiles(name),
       contributions:transaction_contributions(
         *,
-        game_account:game_accounts(name)
+        profile:profiles(name)
+      ),
+      commissions:transaction_commissions(
+        *,
+        profile:profiles(name)
       )
     `)
     .eq('id', id)
@@ -26,10 +30,21 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
   if (!tx) notFound();
 
   const date = new Date(tx.created_at);
-  const displayDate = date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' ' + date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const displayDate = date.toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  }) + ', ' + date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+  const hasRates = tx.rate_food > 0 || tx.rate_wood > 0 || tx.rate_stone > 0 || tx.rate_gold > 0;
+  const rates: Record<string, number> = {
+    food: tx.rate_food, wood: tx.rate_wood, stone: tx.rate_stone, gold: tx.rate_gold
+  };
+
+  const totalCommission = (tx.commissions || []).reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalContrib = Number(tx.total_estimated_value) - totalCommission;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
+      {/* Back + Title */}
       <div className="flex items-center gap-4">
         <Link href="/transactions" className="p-2 bg-white border border-[#E8DDC9] text-[#6B8079] hover:text-[#0E3D40] rounded-xl hover:shadow-sm transition-all">
           <ArrowLeft className="w-5 h-5" />
@@ -37,161 +52,205 @@ export default async function TransactionDetailPage({ params }: { params: { id: 
         <div>
           <h1 className="text-2xl font-extrabold text-[#0E3D40] tracking-tight flex items-center gap-3">
             Transaksi #{String(tx.id).padStart(4, '0')}
-            <span className="badge-admin bg-[#2BB673] text-white">Selesai</span>
+            <span className="text-xs px-2 py-1 rounded-full bg-[#2BB673] text-white font-bold">Selesai</span>
           </h1>
           <p className="text-sm text-[#6B8079] mt-1">{displayDate}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Info Card */}
-        <div className="card p-6 flex flex-col gap-4 bg-gradient-to-br from-white to-[#FAF5EA]">
-          <div className="flex items-center justify-between border-b border-[#E8DDC9] pb-3">
-            <h3 className="text-sm font-bold text-[#0E3D40] uppercase tracking-wider flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-[#2BB673]" /> Detail Pengiriman
-            </h3>
-          </div>
-          
+      {/* Top row: Info + Rates + Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {/* Info */}
+        <div className="card p-5 space-y-4">
+          <h3 className="text-[10px] font-bold text-[#5C6E6E] uppercase tracking-wider flex items-center gap-2">
+            <Receipt className="w-3.5 h-3.5 text-[#2BB673]" /> Detail
+          </h3>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#0E3D40]/5 flex items-center justify-center shrink-0">
-                <User className="w-4 h-4 text-[#0E3D40]" />
+              <div className="w-7 h-7 rounded-full bg-[#0E3D40]/5 flex items-center justify-center shrink-0 mt-0.5">
+                <User className="w-3.5 h-3.5 text-[#0E3D40]" />
               </div>
               <div>
-                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Oleh (Kasir)</p>
-                <p className="font-semibold text-[#0E3D40]">{tx.creator?.name || 'Unknown'}</p>
+                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Kasir</p>
+                <p className="font-semibold text-[#0E3D40] text-sm">{tx.creator?.name || 'Unknown'}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#D9745A]/10 flex items-center justify-center shrink-0">
-                <ArrowRight className="w-4 h-4 text-[#D9745A]" />
+              <div className="w-7 h-7 rounded-full bg-[#D9745A]/10 flex items-center justify-center shrink-0 mt-0.5">
+                <ArrowRight className="w-3.5 h-3.5 text-[#D9745A]" />
               </div>
               <div>
-                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Dikirim Ke</p>
-                <p className="font-semibold text-[#0E3D40]">{tx.to_name}</p>
-                {tx.kingdom && <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#E8DDC9] mt-1 inline-block">{tx.kingdom}</span>}
+                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Buyer</p>
+                <p className="font-bold text-[#0E3D40]">{tx.to_name}</p>
+                {tx.kingdom && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#E8DDC9] inline-block mt-0.5 text-[#5C6E6E]">
+                    KD {tx.kingdom}
+                  </span>
+                )}
               </div>
             </div>
 
             {tx.notes && (
-              <div className="mt-2 p-3 bg-white border border-[#E8DDC9] rounded-lg text-sm text-[#6B8079] italic">
+              <div className="mt-2 p-3 bg-[#FAF5EA] border border-[#E8DDC9] rounded-lg text-xs text-[#6B8079] italic">
                 "{tx.notes}"
               </div>
             )}
+          </div>
+        </div>
 
-            {tx.image_url && (
-              <div>
-                <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <ImageIcon className="w-3 h-3" /> Bukti Transfer
-                </p>
-                <a href={tx.image_url} target="_blank" rel="noopener noreferrer">
-                  <Image
-                    src={tx.image_url}
-                    alt="Bukti Transfer"
-                    width={400}
-                    height={300}
-                    className="rounded-lg border border-[#E8DDC9] object-cover w-full max-h-[250px] hover:opacity-90 transition-opacity cursor-zoom-in"
-                  />
-                </a>
+        {/* Rates */}
+        <div className="card p-5 space-y-4">
+          <h3 className="text-[10px] font-bold text-[#5C6E6E] uppercase tracking-wider flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5 text-[#2BB673]" /> Rate (Rp/juta)
+          </h3>
+          {hasRates ? (
+            <div className="grid grid-cols-2 gap-2">
+              {RESOURCES.map(res => (
+                <div key={res} className="flex items-center justify-between bg-[#FAF5EA] rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn('w-1.5 h-1.5 rounded-full', RESOURCE_DOT[res])} />
+                    <span className="text-[10px] font-bold text-[#6B8079] uppercase">{RESOURCE_LABELS[res]}</span>
+                  </div>
+                  <span className="font-mono text-sm font-bold text-[#0E3D40]">
+                    {rates[res] > 0 ? fmt(rates[res]) : '-'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[#6B8079]">Rate tidak dicatat.</p>
+          )}
+        </div>
+
+        {/* Grand Total */}
+        <div className="card p-5 bg-[#0E3D40] space-y-3">
+          <h3 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Ringkasan Nilai</h3>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-white/60">Kontribusi</span>
+              <span className="font-mono text-sm font-bold text-white">Rp {fmt(totalContrib)}</span>
+            </div>
+            {totalCommission > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/60">Komisi Pengurus</span>
+                <span className="font-mono text-sm font-bold text-[#2BB673]">+ Rp {fmt(totalCommission)}</span>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Totals Card */}
-        <div className="card p-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-[#E8DDC9] pb-3">
-            <h3 className="text-sm font-bold text-[#0E3D40] uppercase tracking-wider">Ringkasan Resource</h3>
-          </div>
-
-          <div className="space-y-3">
-            {RESOURCES.map(res => {
-              const rSent = tx[`total_${res}_sent` as keyof typeof tx] as number;
-              const rRecv = tx[`total_${res}_received` as keyof typeof tx] as number;
-              if (rSent <= 0) return null;
-
-              return (
-                <div key={res} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("w-2 h-2 rounded-full", RESOURCE_DOT[res])}></div>
-                    <span className="text-sm font-bold text-[#6B8079] capitalize">{res}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono text-sm font-extrabold text-[#2BB673]">+{fmt(rRecv)}</div>
-                    <div className="font-mono text-[10px] text-[#D9745A]">Gross: {fmt(rSent)}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-auto pt-4 border-t border-[#E8DDC9] flex items-end justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Estimasi Nilai</p>
-              <p className="font-mono text-xl font-extrabold text-[#0E3D40] tracking-tight">Rp {fmt(tx.total_estimated_value)}</p>
-            </div>
-            {/* calculate average tax */}
-            <div className="text-right">
-               <p className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Est. Tax</p>
-               <p className="font-mono text-sm font-bold text-[#0E3D40]">
-                 {Math.round(((tx.total_food_sent + tx.total_wood_sent + tx.total_stone_sent + tx.total_gold_sent) - (tx.total_food_received + tx.total_wood_received + tx.total_stone_received + tx.total_gold_received)) / Math.max(1, (tx.total_food_received + tx.total_wood_received + tx.total_stone_received + tx.total_gold_received)) * 100)}%
-               </p>
+            <div className="border-t border-white/10 pt-2 mt-1 flex items-end justify-between">
+              <span className="text-[10px] text-white/50 uppercase tracking-wider font-bold">Grand Total</span>
+              <span className="font-mono text-xl font-black text-white">Rp {fmt(tx.total_estimated_value)}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Breakdown per Account */}
-      <div className="card overflow-hidden">
-        <div className="p-4 bg-[#FAF5EA] border-b border-[#E8DDC9]">
-          <h3 className="text-sm font-bold text-[#0E3D40] uppercase tracking-wider">Rincian per Akun</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead>
-              <tr className="bg-white border-b border-[#E8DDC9] font-bold text-[#5C6E6E] uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Akun</th>
-                {RESOURCES.map(res => (
-                  <th key={res} className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <div className={cn("w-2 h-2 rounded-full", RESOURCE_DOT[res])}></div>
-                      {RESOURCE_LABELS[res]}
-                    </div>
-                  </th>
-                ))}
-                <th className="py-3 px-4 text-center">Trips</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E8DDC9]/50">
-              {tx.contributions?.map((c: any) => (
-                <tr key={c.id} className="hover:bg-[#FAF5EA]/50">
-                  <td className="py-3 px-4">
-                    <div className="font-bold text-[#0E3D40]">{c.game_account?.name || 'Unknown'}</div>
-                    <div className="text-[10px] text-[#6B8079]">Tax: {(c.tax_rate * 100).toFixed(0)}%</div>
-                  </td>
-                  {RESOURCES.map(res => {
-                    const cSent = c[`${res}_sent` as keyof typeof c] as number;
-                    const cRecv = c[`${res}_received` as keyof typeof c] as number;
-                    if (cSent <= 0) return <td key={res} className="py-3 px-4 text-right text-[#6B8079]/30">-</td>;
-                    return (
-                      <td key={res} className="py-3 px-4 text-right">
-                        <div className="font-mono text-[#D9745A] font-bold text-[13px] text-right">-{fmt(cSent)}</div>
-                        <div className="font-mono text-[#2BB673] font-semibold text-[10px] mt-0.5 text-right">+{fmt(cRecv)}</div>
-                      </td>
-                    );
-                  })}
-                  <td className="py-3 px-4 text-center">
-                    <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-md bg-[#0E3D40]/10 text-[#0E3D40] font-bold text-xs">
-                      {c.total_trips}
-                    </span>
-                  </td>
+      {/* Kontributor */}
+      {tx.contributions && tx.contributions.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3.5 bg-[#0E3D40] border-b border-[#0E3D40]">
+            <Users className="w-4 h-4 text-white/70" />
+            <h3 className="text-sm font-bold text-white">Kontributor</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-[#FAF5EA] border-b border-[#E8DDC9] text-[#5C6E6E] text-[10px] uppercase tracking-wider">
+                  <th className="py-2.5 px-5 text-left font-bold">Pemilik</th>
+                  {RESOURCES.map(res => (
+                    <th key={res} className="py-2.5 px-4 text-right font-bold">
+                      <div className="flex items-center justify-end gap-1">
+                        <div className={cn('w-1.5 h-1.5 rounded-full', RESOURCE_DOT[res])} />
+                        {RESOURCE_LABELS[res]}
+                      </div>
+                    </th>
+                  ))}
+                  <th className="py-2.5 px-5 text-right font-bold">Nilai</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tx.contributions.map((c: any, idx: number) => {
+                  const cVal = RESOURCES.reduce((s, res) => {
+                    const mil = Number(c[`${res}_received`]) / 1_000_000;
+                    return s + mil * rates[res];
+                  }, 0);
+                  return (
+                    <tr key={c.id} className={cn(
+                      'hover:bg-[#FAF5EA]/50 transition-colors',
+                      idx !== tx.contributions.length - 1 && 'border-b border-[#E8DDC9]/50'
+                    )}>
+                      <td className="py-3 px-5">
+                        <span className="font-bold text-[#0E3D40]">{c.profile?.name || 'Unknown'}</span>
+                      </td>
+                      {RESOURCES.map(res => {
+                        const val = Number(c[`${res}_received`]);
+                        return (
+                          <td key={res} className="py-3 px-4 text-right font-mono">
+                            {val > 0
+                              ? <span className="font-semibold text-[#0E3D40]">{fmt(val / 1_000_000)}M</span>
+                              : <span className="text-[#6B8079]/30">-</span>
+                            }
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-5 text-right">
+                        <span className="font-mono font-bold text-[#2BB673]">Rp {fmt(cVal)}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Komisi Pengurus */}
+      {tx.commissions && tx.commissions.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#FAF5EA] border-b border-[#E8DDC9]">
+            <h3 className="text-sm font-bold text-[#0E3D40]">Komisi Pengurus</h3>
+          </div>
+          <div className="divide-y divide-[#E8DDC9]/50">
+            {tx.commissions.map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#FAF5EA]/50 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-[#0E3D40]/10 flex items-center justify-center">
+                    <span className="text-[9px] font-black text-[#0E3D40]">
+                      {(c.profile?.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="font-semibold text-[#0E3D40] text-sm">{c.profile?.name || 'Unknown'}</span>
+                </div>
+                <span className="font-mono font-bold text-[#D9745A]">Rp {fmt(c.amount)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-5 py-3 bg-[#FAF5EA] font-bold">
+              <span className="text-xs text-[#5C6E6E] uppercase tracking-wider">Total Komisi</span>
+              <span className="font-mono font-black text-[#D9745A]">Rp {fmt(totalCommission)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bukti Transfer */}
+      {tx.image_url && (
+        <div className="card p-5 space-y-3">
+          <h3 className="text-[10px] font-bold text-[#5C6E6E] uppercase tracking-wider flex items-center gap-2">
+            <ImageIcon className="w-3.5 h-3.5" /> Bukti Transfer
+          </h3>
+          <a href={tx.image_url} target="_blank" rel="noopener noreferrer">
+            <Image
+              src={tx.image_url}
+              alt="Bukti Transfer"
+              width={800}
+              height={600}
+              className="rounded-xl border border-[#E8DDC9] object-cover w-full max-h-[400px] hover:opacity-90 transition-opacity cursor-zoom-in"
+            />
+          </a>
+        </div>
+      )}
     </div>
   );
 }
