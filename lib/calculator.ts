@@ -38,7 +38,7 @@ export function buildAccountData(accounts: GameAccount[]): AccountCalcData[] {
       const stock = (rs as any)?.[res] ?? 0;
       const protection = shConfig[res];
       const sendableGross = Math.max(0, stock - protection);
-      const sendableNet = Math.floor(sendableGross / (1 + taxRate) + 1e-9);
+      const sendableNet = Math.floor(Math.floor(sendableGross / (1 + taxRate)) / 1_000_000) * 1_000_000;
       
       resources[res] = {
         stock,
@@ -322,7 +322,7 @@ export function calculateSmart(
       if (net > 0) {
         const grossNeeded = Math.ceil(net * (1 + accData.tax_rate));
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
-        r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
+        r.required_net = Math.floor(Math.floor(r.required_gross / (1 + accData.tax_rate)) / 1_000_000) * 1_000_000;
         r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
       }
     }
@@ -487,7 +487,7 @@ export function calculateManual(
       } else {
         const grossNeeded = Math.ceil(netTarget * (1 + accData.tax_rate));
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
-        r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
+        r.required_net = Math.floor(Math.floor(r.required_gross / (1 + accData.tax_rate)) / 1_000_000) * 1_000_000;
       }
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
