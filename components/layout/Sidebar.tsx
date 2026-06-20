@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Calculator, Users, Gamepad2,
   ArrowLeftRight, BarChart3, Settings, Shield,
-  ChevronRight, Globe, ClipboardList, X,
+  ChevronRight, Globe, ClipboardList, X, Coins,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +28,7 @@ const adminItems: NavItem[] = [
   { href: '/admin/users',                 label: 'Manajemen User',      icon: Users },
   { href: '/admin/kingdoms',              label: 'Kingdoms',            icon: Globe },
   { href: '/admin/prices',               label: 'Harga Resource',      icon: Settings },
+  { href: '/admin/commissions',           label: 'Komisi Pengurus',     icon: Coins },
   { href: '/admin/transactions/create',  label: 'Tambah Transaksi',    icon: ArrowLeftRight },
   { href: '/admin/logs',                 label: 'Activity Logs',       icon: ClipboardList },
 ];
