@@ -37,7 +37,13 @@ export default function NetStockPage() {
       supabase.from('resource_prices').select('*')
     ]);
 
-    if (aRes.data) setAccounts(aRes.data as any);
+    if (aRes.data) {
+      const normalized = aRes.data.map((a: any) => ({
+        ...a,
+        resource_stock: Array.isArray(a.resource_stock) ? a.resource_stock[0] : a.resource_stock,
+      }));
+      setAccounts(normalized as any);
+    }
 
     const gPrices = { food: 0, wood: 0, stone: 0, gold: 0 } as Record<ResourceType, number>;
     const kPrices = {} as Record<number, Record<ResourceType, number>>;

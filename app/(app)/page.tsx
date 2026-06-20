@@ -97,7 +97,13 @@ export default function DashboardPage() {
       supabase.from('resource_prices').select('*')
     ]);
 
-    if (accRes.data) setAccounts(accRes.data);
+    if (accRes.data) {
+      const normalized = accRes.data.map((a: any) => ({
+        ...a,
+        resource_stock: Array.isArray(a.resource_stock) ? a.resource_stock[0] : a.resource_stock,
+      }));
+      setAccounts(normalized);
+    }
     if (kRes.data) setKingdoms(kRes.data);
     if (pRes.data) setProfiles(pRes.data);
 

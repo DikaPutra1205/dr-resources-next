@@ -45,7 +45,10 @@ export default function GameAccountsPage() {
     ]);
 
     if (accRes.data) {
-      let data = accRes.data as unknown as GameAccount[];
+      let data = (accRes.data as any[]).map((a: any) => ({
+        ...a,
+        resource_stock: Array.isArray(a.resource_stock) ? a.resource_stock[0] : a.resource_stock,
+      })) as GameAccount[];
       if (!localIsAdmin && localUserId) data = data.filter(a => a.user_id === localUserId);
       setAccounts(data);
     }
