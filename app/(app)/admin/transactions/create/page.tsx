@@ -223,7 +223,7 @@ export default function ManualTransactionPage() {
     [commissionCalcs, feePerAdmin]
   );
 
-  const grandTotal = totalContribValue + totalCommission;
+  const grandTotal = totalContribValue + totalCommission - totalFees;
 
   const resTotals = useMemo(() => {
     const t = { food: 0, wood: 0, stone: 0, gold: 0 };
