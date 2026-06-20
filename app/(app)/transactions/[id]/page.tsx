@@ -6,9 +6,9 @@ import Image from 'next/image';
 import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
 
-export default async function TransactionDetailPage({ params }: { params: { id: string } }) {
+export default async function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
-  const id = params.id;
+  const { id } = await params;
 
   const { data: tx } = await supabase
     .from('transactions')
