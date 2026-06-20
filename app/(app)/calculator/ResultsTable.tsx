@@ -7,7 +7,6 @@ import { log } from '@/lib/logger';
 import { AlertTriangle, Info, Package, Loader2, Upload, X as XIcon, Coins, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { calculateSequentialTrips } from '@/lib/calculator';
-import Image from 'next/image';
 
 interface CommissionEntry {
   uid: string;
@@ -571,7 +570,8 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                 </label>
                 {imagePreview ? (
                   <div className="relative">
-                    <Image src={imagePreview} alt="Preview" width={400} height={300}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imagePreview} alt="Preview"
                       className="rounded-xl border border-[#E8DDC9] object-cover w-full max-h-[160px]" />
                     <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }}
                       className="absolute top-2 right-2 p-1 bg-[#D9745A] text-white rounded-full hover:bg-[#c0654d] transition-colors shadow">

@@ -6,7 +6,6 @@ import { log } from '@/lib/logger';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, X, Upload, Plus, Trash2, Users, TrendingUp, Loader2, Coins } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { fmt, formatInput, parseShorthand, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
 
 type ResourceKey = 'food' | 'wood' | 'stone' | 'gold';
@@ -417,7 +416,8 @@ export default function ManualTransactionPage() {
             </h3>
             {imagePreview ? (
               <div className="relative">
-                <Image src={imagePreview} alt="Preview" width={400} height={300}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imagePreview} alt="Preview"
                   className="rounded-xl border border-[#E8DDC9] object-cover w-full max-h-[200px]" />
                 <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }}
                   className="absolute top-2 right-2 p-1.5 bg-[#D9745A] text-white rounded-full hover:bg-[#c0654d] transition-colors shadow">
