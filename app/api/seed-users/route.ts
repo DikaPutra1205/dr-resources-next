@@ -53,7 +53,19 @@ const GAME_ACCOUNTS_SEED = [
   { ownerEmail: 'dika@dr-resources.com', name: 'HitamPemacul', tp: 16, sh: 11 },
   { ownerEmail: 'dika@dr-resources.com', name: 'HitamPerokok', tp: 16, sh: 11 },
   { ownerEmail: 'dika@dr-resources.com', name: 'Ijat', tp: 17, sh: 12 },
-  { ownerEmail: 'dika@dr-resources.com', name: 'Jul', tp: 17, sh: 12 }
+  { ownerEmail: 'dika@dr-resources.com', name: 'Jul', tp: 17, sh: 12 },
+
+  // Owner: Yovan
+  { ownerEmail: 'yovan@dr-resources.com', name: 'Genkakuu', tp: 17, sh: 17 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'auraka guy', tp: 17, sh: 17 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'kim un jong', tp: 17, sh: 14 },
+  { ownerEmail: 'yovan@dr-resources.com', name: '1noturbina', tp: 17, sh: 11 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'FluZ Guy', tp: 17, sh: 11 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'Madon 01', tp: 17, sh: 11 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'Makan Nasi', tp: 17, sh: 11 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'Wadimor', tp: 16, sh: 11 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'ipin02', tp: 17, sh: 11 },
+  { ownerEmail: 'yovan@dr-resources.com', name: 'upin10', tp: 17, sh: 11 }
 ];
 
 export async function GET() {
@@ -159,7 +171,7 @@ async function handleSeed() {
   
   if (kingdomId) {
     // Delete existing game accounts for the seeded users under this kingdom to refresh
-    const targetEmails = ['bernardo@dr-resources.com', 'fidel@dr-resources.com', 'dika@dr-resources.com'];
+    const targetEmails = ['bernardo@dr-resources.com', 'fidel@dr-resources.com', 'dika@dr-resources.com', 'yovan@dr-resources.com'];
     const ownerIds = targetEmails
       .map(e => profileMap.get(e.toLowerCase()))
       .filter((id): id is string => !!id);
