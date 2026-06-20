@@ -55,7 +55,10 @@ export default function CalculatorPage() {
       supabase.from('kingdoms').select('*').order('name')
     ]);
 
-    const accs = (aRes.data || []) as GameAccount[];
+    const accs = ((aRes.data || []) as any[]).map((a: any) => ({
+      ...a,
+      resource_stock: Array.isArray(a.resource_stock) ? a.resource_stock[0] : a.resource_stock,
+    })) as GameAccount[];
     setAllAccounts(accs);
     if (profRes.data) setProfiles(profRes.data as any);
     if (kRes.data) setKingdoms(kRes.data);
