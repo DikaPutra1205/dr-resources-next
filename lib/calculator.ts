@@ -33,8 +33,9 @@ export function buildAccountData(accounts: GameAccount[]): AccountCalcData[] {
 
     const resources: Record<ResourceType, ResourceData> = {} as any;
     
+    const rs = Array.isArray(acc.resource_stock) ? acc.resource_stock[0] : acc.resource_stock;
     for (const res of RESOURCES) {
-      const stock = acc.resource_stock?.[res] ?? 0;
+      const stock = (rs as any)?.[res] ?? 0;
       const protection = shConfig[res];
       const sendableGross = Math.max(0, stock - protection);
       const sendableNet = Math.floor(sendableGross / (1 + taxRate) + 1e-9);
