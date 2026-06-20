@@ -38,7 +38,7 @@ export function buildAccountData(accounts: GameAccount[]): AccountCalcData[] {
       const stock = (rs as any)?.[res] ?? 0;
       const protection = shConfig[res];
       const sendableGross = Math.max(0, stock - protection);
-      const sendableNet = Math.floor(Math.floor(sendableGross / (1 + taxRate)) / 1_000_000) * 1_000_000;
+      const sendableNet = Math.floor(Math.floor(sendableGross * (1 - taxRate)) / 1_000_000) * 1_000_000;
       
       resources[res] = {
         stock,
@@ -128,10 +128,10 @@ export function calculateProportional(
         ? r.sendable_net
         : Math.round(r.sendable_net * scaling);
       r.required_gross = Math.min(
-        Math.ceil(r.required_net * (1 + accData.tax_rate)),
+        Math.ceil(r.required_net / (1 - accData.tax_rate)),
         r.sendable_gross
       );
-      r.required_net = Math.floor(r.required_gross / (1 + accData.tax_rate) + 1e-9);
+      r.required_net = Math.floor(r.required_gross * (1 - accData.tax_rate) + 1e-9);
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
   }
@@ -320,9 +320,9 @@ export function calculateSmart(
       const net = a[res];
       r.required_net = net;
       if (net > 0) {
-        const grossNeeded = Math.ceil(net * (1 + accData.tax_rate));
+        const grossNeeded = Math.ceil(net / (1 - accData.tax_rate));
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
-        r.required_net = Math.floor(Math.floor(r.required_gross / (1 + accData.tax_rate)) / 1_000_000) * 1_000_000;
+        r.required_net = Math.floor(Math.floor(r.required_gross * (1 - accData.tax_rate)) / 1_000_000) * 1_000_000;
         r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
       }
     }
@@ -369,14 +369,14 @@ export function calculateSequentialTrips(
       if (remaining[res] >= capacity) {
         trip[res] = {
           net: capacity,
-          gross: Math.ceil(capacity * (1 + taxRate)),
+          gross: Math.ceil(capacity / (1 - taxRate)),
         };
         remaining[res] -= capacity;
       } else {
         const netPart = remaining[res];
         trip[res] = {
           net: netPart,
-          gross: Math.ceil(netPart * (1 + taxRate)),
+          gross: Math.ceil(netPart / (1 - taxRate)),
         };
         remaining[res] = 0;
 
@@ -388,7 +388,7 @@ export function calculateSequentialTrips(
           if (take > 0) {
             trip[nextRes] = {
               net: take,
-              gross: Math.ceil(take * (1 + taxRate)),
+              gross: Math.ceil(take / (1 - taxRate)),
             };
             remaining[nextRes] -= take;
             left -= take;
@@ -458,10 +458,10 @@ export function calculateFairShare(
       const netAssigned = Math.round(assignments[idx]);
       if (netAssigned <= 0) return;
       const grossNeeded = Math.min(
-        Math.ceil(netAssigned * (1 + accData.tax_rate)),
+        Math.ceil(netAssigned / (1 - accData.tax_rate)),
         accData.resources[res].sendable_gross,
       );
-      const netActual = Math.floor(grossNeeded / (1 + accData.tax_rate) + 1e-9);
+      const netActual = Math.floor(grossNeeded * (1 - accData.tax_rate) + 1e-9);
       accData.resources[res].required_gross = grossNeeded;
       accData.resources[res].required_net = netActual;
       accData.resources[res].trips = calcTrips(netActual, accData.capacity_per_trip);
@@ -496,9 +496,9 @@ export function calculateManual(
         r.required_gross = r.sendable_gross;
         r.required_net = r.sendable_net;
       } else {
-        const grossNeeded = Math.ceil(netTarget * (1 + accData.tax_rate));
+        const grossNeeded = Math.ceil(netTarget / (1 - accData.tax_rate));
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
-        r.required_net = Math.floor(Math.floor(r.required_gross / (1 + accData.tax_rate)) / 1_000_000) * 1_000_000;
+        r.required_net = Math.floor(Math.floor(r.required_gross * (1 - accData.tax_rate)) / 1_000_000) * 1_000_000;
       }
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
     }
@@ -537,7 +537,7 @@ export function calculateTripBreakdown(
       if (sent > 0) {
         resources[res] = {
           sent,
-          received: Math.floor(sent / (1 + taxRate) + 1e-9),
+          received: Math.floor(sent * (1 - taxRate) + 1e-9),
         };
       }
     }
@@ -549,10 +549,10 @@ export function calculateTripBreakdown(
     ];
   }
 
-  const netFood = foodSent / (1 + taxRate);
-  const netWood = woodSent / (1 + taxRate);
-  const netStone = stoneSent / (1 + taxRate);
-  const netGold = goldSent / (1 + taxRate);
+  const netFood = foodSent * (1 - taxRate);
+  const netWood = woodSent * (1 - taxRate);
+  const netStone = stoneSent * (1 - taxRate);
+  const netGold = goldSent * (1 - taxRate);
 
   const tripsFood = Math.ceil(netFood / capacity);
   const tripsWood = Math.ceil(netWood / capacity);
@@ -561,7 +561,7 @@ export function calculateTripBreakdown(
 
   const totalTrips = Math.max(tripsFood, tripsWood, tripsStone, tripsGold);
   const tripDetails: any[] = [];
-  const grossCapacity = Math.round(capacity * (1 + taxRate));
+  const grossCapacity = Math.round(capacity / (1 - taxRate));
 
   for (let t = 1; t <= totalTrips; t++) {
     const resources: any = {};
@@ -572,7 +572,7 @@ export function calculateTripBreakdown(
       if (sent > 0) {
         resources[res] = {
           sent,
-          received: Math.floor(sent / (1 + taxRate) + 1e-9),
+          received: Math.floor(sent * (1 - taxRate) + 1e-9),
         };
       }
     }
