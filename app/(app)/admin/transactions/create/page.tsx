@@ -418,7 +418,7 @@ export default function ManualTransactionPage() {
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={imagePreview} alt="Preview"
-                  className="rounded-xl border border-[#E8DDC9] object-cover w-full max-h-[200px]" />
+                  className="rounded-xl border border-[#E8DDC9] w-full object-contain max-h-[500px]" />
                 <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }}
                   className="absolute top-2 right-2 p-1.5 bg-[#D9745A] text-white rounded-full hover:bg-[#c0654d] transition-colors shadow">
                   <X className="w-3.5 h-3.5" />
@@ -638,6 +638,65 @@ export default function ManualTransactionPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Ringkasan Pembayaran — siapa dapet berapa */}
+          {contributors.some(c => c.uid && contribValue(c) > 0) && (
+            <div className="card overflow-hidden">
+              <div className="px-5 py-3 bg-[#0E3D40]">
+                <h3 className="text-sm font-bold text-white">Ringkasan Pembayaran</h3>
+                <p className="text-[10px] text-white/50">Total yang harus ditransfer ke masing-masing penerima</p>
+              </div>
+              <div className="divide-y divide-[#E8DDC9]/50">
+                {contributors.filter(c => c.uid && contribValue(c) > 0).map(c => {
+                  const p = profiles.find(p => p.id === c.uid);
+                  return (
+                    <div key={c.tempId} className="flex items-center justify-between px-5 py-3.5 hover:bg-[#FAF5EA]/50 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-[#0E3D40]/10 flex items-center justify-center shrink-0">
+                          <span className="text-[10px] font-black text-[#0E3D40]">{p?.name?.charAt(0) || '?'}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-[#0E3D40] text-sm">{p?.name || 'Unknown'}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {RES.filter(r => parseNum(c[r]) > 0).map(r => (
+                              <span key={r} className="text-[9px] font-mono font-bold text-[#6B8079]">
+                                <span className={cn('inline-block w-1.5 h-1.5 rounded-full mr-0.5', RESOURCE_DOT[r])} />
+                                {fmt(parseNum(c[r]))}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-black text-[#0E3D40]">Rp {fmt(contribValue(c))}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {netCommissions.length > 0 && (
+                  <>
+                    <div className="px-5 py-2 bg-[#FAF5EA]/70">
+                      <span className="text-[10px] font-bold text-[#6B8079] uppercase tracking-wider">Komisi Pengurus (bersih)</span>
+                    </div>
+                    {netCommissions.filter(c => c.net_amount > 0).map(c => (
+                      <div key={c.uid} className="flex items-center justify-between px-5 py-2.5 hover:bg-[#FAF5EA]/50 transition-colors">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-6 h-6 rounded-full bg-[#D9745A]/10 flex items-center justify-center shrink-0">
+                            <span className="text-[9px] font-black text-[#D9745A]">{c.name.charAt(0)}</span>
+                          </div>
+                          <span className="text-sm text-[#0E3D40]">{c.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-mono font-bold text-[#D9745A] text-sm">Rp {fmt(c.net_amount)}</div>
+                          {c.fee_share > 0 && <div className="text-[9px] font-mono text-[#6B8079]">(potongan Rp {fmt(c.fee_share)})</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           )}
