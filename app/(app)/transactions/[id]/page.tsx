@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Receipt, ArrowRight, ImageIcon, TrendingUp, Users, Wallet } from 'lucide-react';
-import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn, txCode, STATUS_CONFIG, TransactionStatus } from '@/lib/utils';
+import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn, txCode } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
+import StatusChanger from './StatusChanger';
 
 export default async function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
@@ -27,6 +28,10 @@ export default async function TransactionDetailPage({ params }: { params: Promis
     .single();
 
   if (!tx) notFound();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id ?? '').single();
+  const isAdmin = profile?.role === 'admin';
 
   const date = new Date(tx.created_at);
   const displayDate = date.toLocaleDateString('id-ID', {
@@ -97,15 +102,11 @@ export default async function TransactionDetailPage({ params }: { params: Promis
       <div>
           <h1 className="text-2xl font-extrabold text-[#0E3D40] tracking-tight flex items-center gap-3">
             {txCode(tx.created_at)}
-            {(() => {
-              const s = STATUS_CONFIG[(tx.status as TransactionStatus) || 'done'];
-              return (
-                <span className={`text-xs px-2.5 py-1 rounded-full border font-bold inline-flex items-center gap-1.5 ${s.cls}`}>
-                  <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-                  {s.label}
-                </span>
-              );
-            })()}
+            <StatusChanger
+              txId={tx.id}
+              currentStatus={(tx.status || 'done') as any}
+              isAdmin={isAdmin}
+            />
           </h1>
           <p className="text-sm text-[#6B8079] mt-1">{displayDate}</p>
         </div>
