@@ -54,6 +54,7 @@ export default function ManualTransactionPage() {
     const tzOffset = 7 * 60;
     return new Date(Date.now() + tzOffset * 60 * 1000).toISOString().substring(0, 16);
   });
+  const [status, setStatus] = useState<'done' | 'cancelled'>('done');
 
   // Rates (Rp/juta per resource)
   const [rates, setRates] = useState<Record<ResourceKey, string>>({ food: '', wood: '', stone: '', gold: '' });
@@ -186,17 +187,17 @@ export default function ManualTransactionPage() {
     [contributors, rateNum]
   );
 
-  const activeCommissions = useMemo(() =>
-    commissions.filter(c => parseNum(c.rate) > 0),
-    [commissions]
-  );
-
   const commissionCalcs = useMemo(() =>
-    activeCommissions.map(c => ({
+    commissions.map(c => ({
       ...c,
       amount: (totalResourceUnits / 1_000_000) * parseNum(c.rate),
     })),
-    [activeCommissions, totalResourceUnits]
+    [commissions, totalResourceUnits]
+  );
+
+  const activeCommissions = useMemo(() =>
+    commissionCalcs.filter(c => c.amount > 0),
+    [commissionCalcs]
   );
 
   const totalCommission = useMemo(
@@ -265,6 +266,7 @@ export default function ManualTransactionPage() {
         notes: notes || null,
         sent_at: new Date(sentAt).toISOString(),
         kingdom: kd?.name || null,
+        status,
         rate_food: rateNum.food,
         rate_wood: rateNum.wood,
         rate_stone: rateNum.stone,
@@ -316,7 +318,7 @@ export default function ManualTransactionPage() {
         if (feeErr) throw feeErr;
       }
 
-      await log('transaction.create', { transaction_id: tx.id, to_name: toName.trim(), grand_total: grandTotal, kingdom: kd?.name || null });
+      await log('transaction.create', { transaction_id: tx.id, to_name: toName.trim(), grand_total: grandTotal, kingdom: kd?.name || null }, user.id);
       router.push('/transactions');
     } catch (err: any) {
       alert('Gagal menyimpan: ' + err.message);
@@ -380,6 +382,20 @@ export default function ManualTransactionPage() {
             <div>
               <label className="label">Tanggal Pengiriman</label>
               <input type="datetime-local" value={sentAt} onChange={e => setSentAt(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Status</label>
+              <div className="flex gap-2">
+                {([['done', '✅ Selesai', 'bg-emerald-50 border-emerald-400 text-emerald-700'], ['cancelled', '❌ Dibatalkan', 'bg-red-50 border-red-400 text-red-700']] as const).map(([val, label, cls]) => (
+                  <button key={val} type="button"
+                    onClick={() => setStatus(val)}
+                    className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg border-2 transition-all ${
+                      status === val ? cls : 'border-[#E8DDC9] text-[#6B8079] bg-white hover:border-[#C4B998]'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="label">Catatan (opsional)</label>
@@ -547,7 +563,7 @@ export default function ManualTransactionPage() {
                       />
                       <span className="text-[10px] text-[#6B8079]">/M</span>
                     </div>
-                    <span className="font-mono font-bold text-[#D9745A] text-sm w-24 text-right">
+                    <span className={`font-mono font-bold text-sm w-24 text-right ${c.amount > 0 ? 'text-[#D9745A]' : 'text-[#6B8079]/30'}`}>
                       {c.amount > 0 ? `Rp ${fmt(c.amount)}` : '-'}
                     </span>
                   </div>

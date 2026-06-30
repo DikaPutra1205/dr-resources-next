@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { Eye, Plus, MapPin } from 'lucide-react';
-import { cn, fmt, RESOURCES, RESOURCE_DOT } from '@/lib/utils';
+import { cn, fmt, RESOURCES, RESOURCE_DOT, txCode, STATUS_CONFIG, TransactionStatus } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
 
 export default async function TransactionsPage() {
@@ -52,10 +52,19 @@ export default async function TransactionsPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     {/* Header row */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-mono font-black text-[#0E3D40] text-sm bg-[#0E3D40]/5 px-2 py-0.5 rounded-lg">
-                        #{String(tx.id).padStart(4, '0')}
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="font-mono font-black text-[#0E3D40] text-xs bg-[#0E3D40]/5 px-2 py-0.5 rounded-lg tracking-wide">
+                        {txCode(tx.created_at)}
                       </span>
+                      {(() => {
+                        const s = STATUS_CONFIG[(tx.status as TransactionStatus) || 'done'];
+                        return (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.cls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                            {s.label}
+                          </span>
+                        );
+                      })()}
                       {tx.kingdom && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6B8079] bg-[#FAF5EA] px-2 py-0.5 rounded-full">
                           <MapPin className="w-2.5 h-2.5" />

@@ -86,6 +86,7 @@ export interface Transaction {
   notes: string | null;
   sent_at: string;
   kingdom: string | null;
+  status: 'pending' | 'done' | 'cancelled';
   total_food_sent: number;
   total_wood_sent: number;
   total_stone_sent: number;

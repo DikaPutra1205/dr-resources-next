@@ -33,6 +33,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
   const [toName, setToName] = useState('');
   const [notes, setNotes] = useState('');
   const [sentAt, setSentAt] = useState('');
+  const [status, setStatus] = useState<'done' | 'cancelled'>('done');
 
   // Commission state
   const [commissions, setCommissions] = useState<CommissionEntry[]>([]);
@@ -113,18 +114,19 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
     return RESOURCES.reduce((s, res) => s + (totals[`${res}_received`] || 0), 0) / 1_000_000;
   }, [totals]);
 
-  const activeCommissions = useMemo(() =>
-    commissions.filter(c => parseNum(c.rate) > 0),
-    [commissions]
-  );
-
+  // All commissions rendered (including rate=0 so names don't disappear)
+  // Only those with rate > 0 are used in calculations
   const commissionCalcs = useMemo(() =>
-    activeCommissions.map(c => ({
+    commissions.map(c => ({
       ...c,
-      rate: c.rate,
       amount: totalResourceMil * (parseNum(c.rate) || 0),
     })),
-    [activeCommissions, totalResourceMil]
+    [commissions, totalResourceMil]
+  );
+
+  const activeCommissions = useMemo(() =>
+    commissionCalcs.filter(c => c.amount > 0),
+    [commissionCalcs]
   );
 
   const totalCommission = useMemo(
@@ -204,6 +206,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
         notes: notes || null,
         sent_at: new Date(sentAt).toISOString(),
         kingdom: kingdomName,
+        status,
         rate_food: prices?.food || 0,
         rate_wood: prices?.wood || 0,
         rate_stone: prices?.stone || 0,
@@ -272,7 +275,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
         if (feeErr) throw new Error(feeErr.message);
       }
 
-      await log('transaction.create', { transaction_id: tx.id, to_name: toName, grand_total: grandTotal, kingdom: kingdomName });
+      await log('transaction.create', { transaction_id: tx.id, to_name: toName, grand_total: grandTotal, kingdom: kingdomName }, userId);
       alert('Transaksi berhasil disimpan!');
       router.push('/transactions');
       router.refresh();
@@ -462,7 +465,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                           className="w-14 text-right text-xs font-mono py-1 px-2 border border-[#E8DDC9] rounded focus:border-[#2BB673] outline-none bg-[#FAF5EA]/50" placeholder="0" />
                         <span className="text-[9px] text-[#6B8079]">/M</span>
                       </div>
-                      <span className="text-xs font-mono font-bold text-[#D9745A] w-20 text-right">
+                      <span className={`text-xs font-mono font-bold w-20 text-right ${c.amount > 0 ? 'text-[#D9745A]' : 'text-[#6B8079]/30'}`}>
                         {c.amount > 0 ? `Rp ${fmt(c.amount)}` : '-'}
                       </span>
                     </div>
@@ -542,6 +545,21 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
           <div className="space-y-4">
             <div className="bg-white p-5 rounded-xl border border-[#E8DDC9] shadow-sm space-y-4">
               <h3 className="text-xs font-bold text-[#0E3D40] uppercase tracking-wider border-b border-[#E8DDC9]/60 pb-2">Catat Transaksi</h3>
+
+              <div>
+                <label className="block text-xs font-bold text-[#6B8079] uppercase tracking-wider mb-1.5">Status</label>
+                <div className="flex gap-2">
+                  {([['done', '✅ Selesai', 'bg-emerald-50 border-emerald-400 text-emerald-700'], ['cancelled', '❌ Dibatalkan', 'bg-red-50 border-red-400 text-red-700']] as const).map(([val, label, cls]) => (
+                    <button key={val} type="button"
+                      onClick={() => setStatus(val)}
+                      className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg border-2 transition-all ${
+                        status === val ? cls : 'border-[#E8DDC9] text-[#6B8079] bg-white hover:border-[#C4B998]'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-[#6B8079] uppercase tracking-wider mb-1.5">Nama Penerima</label>

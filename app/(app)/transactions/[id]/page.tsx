@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Receipt, ArrowRight, ImageIcon, TrendingUp, Users, Wallet } from 'lucide-react';
-import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn } from '@/lib/utils';
+import { fmt, RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, cn, txCode, STATUS_CONFIG, TransactionStatus } from '@/lib/utils';
 import type { ResourceType } from '@/lib/types';
 
 export default async function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -94,10 +94,18 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         <Link href="/transactions" className="p-2 bg-white border border-[#E8DDC9] text-[#6B8079] hover:text-[#0E3D40] rounded-xl hover:shadow-sm transition-all">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div>
+      <div>
           <h1 className="text-2xl font-extrabold text-[#0E3D40] tracking-tight flex items-center gap-3">
-            Transaksi #{String(tx.id).padStart(4, '0')}
-            <span className="text-xs px-2 py-1 rounded-full bg-[#2BB673] text-white font-bold">Selesai</span>
+            {txCode(tx.created_at)}
+            {(() => {
+              const s = STATUS_CONFIG[(tx.status as TransactionStatus) || 'done'];
+              return (
+                <span className={`text-xs px-2.5 py-1 rounded-full border font-bold inline-flex items-center gap-1.5 ${s.cls}`}>
+                  <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+                  {s.label}
+                </span>
+              );
+            })()}
           </h1>
           <p className="text-sm text-[#6B8079] mt-1">{displayDate}</p>
         </div>

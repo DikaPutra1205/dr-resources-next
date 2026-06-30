@@ -12,6 +12,27 @@ export function fmt(n: number): string {
   return Math.round(n).toLocaleString('id-ID');
 }
 
+/**
+ * Generate a human-friendly transaction code from created_at timestamp.
+ * Format: TRX-YYYYMMDD-HHMMSS (e.g. TRX-20260701-023714)
+ * Uses UTC+7 (WIB) display time to match the app's timezone context.
+ */
+export function txCode(createdAt: string): string {
+  const d = new Date(new Date(createdAt).getTime() + 7 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+  const time = `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
+  return `TRX-${date}-${time}`;
+}
+
+export type TransactionStatus = 'pending' | 'done' | 'cancelled';
+
+export const STATUS_CONFIG: Record<TransactionStatus, { label: string; cls: string; dot: string }> = {
+  pending:   { label: 'Pending',    cls: 'bg-amber-50 text-amber-700 border-amber-300',    dot: 'bg-amber-400' },
+  done:      { label: 'Selesai',    cls: 'bg-emerald-50 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' },
+  cancelled: { label: 'Dibatalkan', cls: 'bg-red-50 text-red-600 border-red-300',          dot: 'bg-red-400' },
+};
+
 /** Parse shorthand input: "200m" → 200_000_000, "150k" → 150_000, "1.5m" → 1_500_000 */
 export function parseShorthand(value: string): number {
   if (!value || value.trim() === '') return 0;
