@@ -33,7 +33,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
   const [toName, setToName] = useState('');
   const [notes, setNotes] = useState('');
   const [sentAt, setSentAt] = useState('');
-  const [status, setStatus] = useState<'done' | 'cancelled'>('done');
+  const [status, setStatus] = useState<'pending' | 'done'>('done');
 
   // Commission state
   const [commissions, setCommissions] = useState<CommissionEntry[]>([]);
@@ -549,7 +549,7 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
               <div>
                 <label className="block text-xs font-bold text-[#6B8079] uppercase tracking-wider mb-1.5">Status</label>
                 <div className="flex gap-2">
-                  {([['done', '✅ Selesai', 'bg-emerald-50 border-emerald-400 text-emerald-700'], ['cancelled', '❌ Dibatalkan', 'bg-red-50 border-red-400 text-red-700']] as const).map(([val, label, cls]) => (
+                  {([['pending', '⏳ Pending', 'bg-amber-50 border-amber-400 text-amber-700'], ['done', '✅ Selesai', 'bg-emerald-50 border-emerald-400 text-emerald-700']] as const).map(([val, label, cls]) => (
                     <button key={val} type="button"
                       onClick={() => setStatus(val)}
                       className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg border-2 transition-all ${

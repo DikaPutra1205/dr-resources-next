@@ -7,7 +7,7 @@ import { STATUS_CONFIG, TransactionStatus } from '@/lib/utils';
 import { Loader2, ChevronDown } from 'lucide-react';
 import { log } from '@/lib/logger';
 
-const ALL_STATUSES: TransactionStatus[] = ['pending', 'done', 'cancelled'];
+const ALL_STATUSES: TransactionStatus[] = ['pending', 'done'];
 
 export default function StatusChanger({
   txId,
