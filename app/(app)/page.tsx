@@ -382,8 +382,6 @@ export default function DashboardPage() {
   async function handleToggleDaily(accId: number, currentlyDone: boolean) {
     const acc = accounts.find(a => a.id === accId);
     if (!acc) return;
-    const canEdit = isAdmin || acc.user_id === userId;
-    if (!canEdit) return;
 
     const newTimestamp = currentlyDone ? null : new Date().toISOString();
     setSavingDaily(prev => ({ ...prev, [accId]: true }));
@@ -414,8 +412,8 @@ export default function DashboardPage() {
 
   // Handle Bulk Daily Quest Update
   async function handleBulkDaily(markDone: boolean) {
-    if (myEditableAccounts.length === 0) return;
-    const targetIds = myEditableAccounts.map(a => a.id);
+    if (baseScopeAccounts.length === 0) return;
+    const targetIds = baseScopeAccounts.map(a => a.id);
     const newTimestamp = markDone ? new Date().toISOString() : null;
 
     setIsBulkSaving(true);
@@ -800,7 +798,15 @@ export default function DashboardPage() {
                       </td>
 
                       {/* Daily Quest Interactive Toggle */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <td
+                        className="py-3 px-3 text-center whitespace-nowrap cursor-pointer hover:bg-black/5 transition-colors select-none"
+                        onClick={() => !isDailySaving && handleToggleDaily(acc.id, isDone)}
+                        title={
+                          isDone
+                            ? `Selesai ${completedTimeStr ? `pukul ${completedTimeStr}` : 'hari ini'}. Klik untuk batalkan.`
+                            : "Belum dikerjakan. Klik jika sudah menyelesaikan Daily Quest."
+                        }
+                      >
                         {isDailySaving ? (
                           <div className="inline-flex items-center gap-1 px-3 py-1 text-xs text-[#2BB673]">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -809,20 +815,11 @@ export default function DashboardPage() {
                         ) : isDone ? (
                           <button
                             type="button"
-                            onClick={() => hasWriteAccess && handleToggleDaily(acc.id, true)}
-                            disabled={!hasWriteAccess}
-                            title={
-                              hasWriteAccess
-                                ? `Selesai ${completedTimeStr ? `pukul ${completedTimeStr}` : 'hari ini'}. Klik untuk batalkan.`
-                                : `Selesai ${completedTimeStr ? `pukul ${completedTimeStr}` : 'hari ini'}`
-                            }
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all duration-150 border shadow-xs group/btn",
-                              "bg-emerald-50 text-emerald-700 border-emerald-300",
-                              hasWriteAccess
-                                ? "hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
-                                : "cursor-default opacity-85"
-                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleDaily(acc.id, true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all duration-150 border shadow-xs bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 fill-emerald-100 shrink-0" />
                             <span>Selesai</span>
@@ -835,20 +832,11 @@ export default function DashboardPage() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => hasWriteAccess && handleToggleDaily(acc.id, false)}
-                            disabled={!hasWriteAccess}
-                            title={
-                              hasWriteAccess
-                                ? "Belum dikerjakan. Klik jika sudah menyelesaikan Daily Quest."
-                                : "Belum dikerjakan hari ini."
-                            }
-                            className={cn(
-                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-150 border",
-                              "bg-amber-50/70 text-amber-800/80 border-amber-200/80",
-                              hasWriteAccess
-                                ? "hover:bg-amber-100 hover:text-amber-900 hover:border-amber-300 cursor-pointer active:scale-95"
-                                : "cursor-default opacity-75"
-                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleDaily(acc.id, false);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-150 border bg-amber-50/70 text-amber-800/80 border-amber-200/80 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-300 cursor-pointer active:scale-95"
                           >
                             <Circle className="w-3 h-3 text-amber-600/70 stroke-[2.5] shrink-0" />
                             <span>Belum</span>

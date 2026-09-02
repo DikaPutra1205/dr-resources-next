@@ -79,8 +79,6 @@ export default function GameAccountsPage() {
   async function handleToggleDaily(accId: number, currentlyDone: boolean) {
     const acc = accounts.find(a => a.id === accId);
     if (!acc) return;
-    const canEdit = isAdmin || acc.user_id === userId;
-    if (!canEdit) return;
 
     const newTimestamp = currentlyDone ? null : new Date().toISOString();
     setSavingDaily(prev => ({ ...prev, [accId]: true }));
@@ -298,19 +296,21 @@ export default function GameAccountsPage() {
                           </td>
 
                           {/* Daily Quest Status Toggle */}
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <td
+                            className="py-3 px-3 text-center whitespace-nowrap cursor-pointer hover:bg-black/5 transition-colors select-none"
+                            onClick={() => !isDailySaving && handleToggleDaily(acc.id, isDone)}
+                            title={isDone ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : "Belum daily. Klik jika sudah selesai."}
+                          >
                             {isDailySaving ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2BB673] mx-auto" />
                             ) : isDone ? (
                               <button
                                 type="button"
-                                onClick={() => canEditDaily && handleToggleDaily(acc.id, true)}
-                                disabled={!canEditDaily}
-                                title={canEditDaily ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : `Selesai ${completedTimeStr}`}
-                                className={cn(
-                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs",
-                                  canEditDaily && "hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
-                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleDaily(acc.id, true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
                               >
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600 fill-emerald-100" />
                                 <span>Selesai</span>
@@ -318,13 +318,11 @@ export default function GameAccountsPage() {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => canEditDaily && handleToggleDaily(acc.id, false)}
-                                disabled={!canEditDaily}
-                                title={canEditDaily ? "Belum daily. Klik jika sudah selesai." : "Belum daily"}
-                                className={cn(
-                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200",
-                                  canEditDaily && "hover:bg-amber-100 hover:border-amber-300 cursor-pointer active:scale-95"
-                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleDaily(acc.id, false);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer active:scale-95"
                               >
                                 <Circle className="w-2.5 h-2.5 text-amber-600 stroke-[2.5]" />
                                 <span>Belum</span>
