@@ -3,9 +3,21 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GameAccount, Kingdom, ResourceType, Profile } from '@/lib/types';
-import { Plus, Edit2, Trash2, Loader2, Save, Check, Shield, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, Check, Shield, X, CheckCircle2, Circle } from 'lucide-react';
 import { log } from '@/lib/logger';
-import { RESOURCES, RESOURCE_LABELS, RESOURCE_COLORS, RESOURCE_DOT, RESOURCE_BORDER, cn, fmt, parseShorthand, formatInput } from '@/lib/utils';
+import {
+  RESOURCES,
+  RESOURCE_LABELS,
+  RESOURCE_COLORS,
+  RESOURCE_DOT,
+  RESOURCE_BORDER,
+  cn,
+  fmt,
+  parseShorthand,
+  formatInput,
+  isDailyCompleted,
+  formatDailyCompletedTime,
+} from '@/lib/utils';
 
 export default function GameAccountsPage() {
   const supabase = createClient();
@@ -16,6 +28,9 @@ export default function GameAccountsPage() {
   const [userId, setUserId] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const [now, setNow] = useState<Date>(new Date());
+  const [savingDaily, setSavingDaily] = useState<Record<number, boolean>>({});
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formAccount, setFormAccount] = useState<Partial<GameAccount>>({});
   const [saving, setSaving] = useState(false);
@@ -23,7 +38,11 @@ export default function GameAccountsPage() {
   const [editingStock, setEditingStock] = useState<{ id: number, resource: ResourceType } | null>(null);
   const [stockInput, setStockInput] = useState('');
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    const timer = setInterval(() => setNow(new Date()), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function fetchData() {
     setLoading(true);
@@ -55,6 +74,36 @@ export default function GameAccountsPage() {
     if (kRes.data) setKingdoms(kRes.data);
     if (pRes.data) setProfiles(pRes.data);
     setLoading(false);
+  }
+
+  async function handleToggleDaily(accId: number, currentlyDone: boolean) {
+    const acc = accounts.find(a => a.id === accId);
+    if (!acc) return;
+    const canEdit = isAdmin || acc.user_id === userId;
+    if (!canEdit) return;
+
+    const newTimestamp = currentlyDone ? null : new Date().toISOString();
+    setSavingDaily(prev => ({ ...prev, [accId]: true }));
+    setAccounts(prev => prev.map(a => a.id === accId ? { ...a, daily_completed_at: newTimestamp } : a));
+
+    try {
+      const { error } = await supabase
+        .from('game_accounts')
+        .update({ daily_completed_at: newTimestamp })
+        .eq('id', accId);
+
+      if (error) {
+        setAccounts(prev => prev.map(a => a.id === accId ? { ...a, daily_completed_at: acc.daily_completed_at } : a));
+        alert('Gagal update daily: ' + error.message);
+      } else {
+        log('daily.toggle', { game_account_id: accId, completed: !currentlyDone, timestamp: newTimestamp });
+      }
+    } catch (err: any) {
+      setAccounts(prev => prev.map(a => a.id === accId ? { ...a, daily_completed_at: acc.daily_completed_at } : a));
+      alert('Gagal update daily: ' + err.message);
+    } finally {
+      setSavingDaily(prev => ({ ...prev, [accId]: false }));
+    }
   }
 
   function handleOpenModal(acc?: GameAccount) {
@@ -132,7 +181,7 @@ export default function GameAccountsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#0E3D40] tracking-tight">Akun Game</h1>
-          <p className="text-sm text-[#6B8079] mt-1">Kelola akun dan update stok resource per kingdom.</p>
+          <p className="text-sm text-[#6B8079] mt-1">Kelola akun, update status daily quest harian, dan pantau stok resource.</p>
         </div>
         {isAdmin && (
           <button onClick={() => handleOpenModal()} className="btn-primary shrink-0">
@@ -191,6 +240,7 @@ export default function GameAccountsPage() {
                       <th className="py-2.5 px-5 font-bold">Nama Akun</th>
                       {isAdmin && <th className="py-2.5 px-4 font-bold">Pemilik</th>}
                       <th className="py-2.5 px-4 text-center font-bold">TP / SH</th>
+                      <th className="py-2.5 px-3 text-center font-bold">Daily</th>
                       <th className="py-2.5 px-4 font-bold">Catatan</th>
                       {RESOURCES.map(res => (
                         <th key={res} className="py-2.5 px-4 text-right font-bold">
@@ -204,47 +254,88 @@ export default function GameAccountsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {group.accounts.map((acc, idx) => (
-                      <tr
-                        key={acc.id}
-                        className={cn(
-                          'hover:bg-[#FAF5EA]/60 transition-colors',
-                          idx !== group.accounts.length - 1 && 'border-b border-[#E8DDC9]/50'
-                        )}
-                      >
-                        {/* Nama & badge */}
-                        <td className="py-3 px-5">
-                          <div className="font-bold text-[#0E3D40] leading-tight">{acc.name}</div>
-                          <span className={cn(
-                            'text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-0.5 inline-block',
-                            acc.type === 'main' ? 'bg-[#0E3D40] text-white' : 'bg-[#E8DDC9] text-[#5C6E6E]'
-                          )}>
-                            {acc.type}
-                          </span>
-                        </td>
+                    {group.accounts.map((acc, idx) => {
+                      const isDone = isDailyCompleted(acc.daily_completed_at, now);
+                      const isDailySaving = savingDaily[acc.id];
+                      const canEditDaily = acc.user_id === userId || isAdmin;
+                      const completedTimeStr = isDone ? formatDailyCompletedTime(acc.daily_completed_at) : '';
 
-                        {/* Pemilik (admin only) */}
-                        {isAdmin && (
-                          <td className="py-3 px-4">
-                            <span className="text-xs font-medium text-[#0E3D40] bg-[#0E3D40]/5 px-2 py-0.5 rounded-full">
-                              {(acc as any).profile?.name || '-'}
+                      return (
+                        <tr
+                          key={acc.id}
+                          className={cn(
+                            'hover:bg-[#FAF5EA]/60 transition-colors',
+                            idx !== group.accounts.length - 1 && 'border-b border-[#E8DDC9]/50'
+                          )}
+                        >
+                          {/* Nama & badge */}
+                          <td className="py-3 px-5">
+                            <div className="font-bold text-[#0E3D40] leading-tight">{acc.name}</div>
+                            <span className={cn(
+                              'text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-0.5 inline-block',
+                              acc.type === 'main' ? 'bg-[#0E3D40] text-white' : 'bg-[#E8DDC9] text-[#5C6E6E]'
+                            )}>
+                              {acc.type}
                             </span>
                           </td>
-                        )}
 
-                        {/* TP / SH */}
-                        <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 font-mono text-xs bg-[#E8DDC9]/40 px-2 py-1 rounded-lg">
-                            <span className="font-bold text-[#0E3D40]">{acc.trading_post_level}</span>
-                            <span className="text-[#6B8079]/50">/</span>
-                            <span className="font-bold text-[#0E3D40]">{acc.storehouse_level}</span>
-                          </span>
-                        </td>
+                          {/* Pemilik (admin only) */}
+                          {isAdmin && (
+                            <td className="py-3 px-4">
+                              <span className="text-xs font-medium text-[#0E3D40] bg-[#0E3D40]/5 px-2 py-0.5 rounded-full">
+                                {(acc as any).profile?.name || '-'}
+                              </span>
+                            </td>
+                          )}
 
-                        {/* Catatan */}
-                        <td className="py-3 px-4 text-[#6B8079] text-xs max-w-[140px] truncate" title={acc.notes || ''}>
-                          {acc.notes || <span className="opacity-30">—</span>}
-                        </td>
+                          {/* TP / SH */}
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center gap-1 font-mono text-xs bg-[#E8DDC9]/40 px-2 py-1 rounded-lg">
+                              <span className="font-bold text-[#0E3D40]">{acc.trading_post_level}</span>
+                              <span className="text-[#6B8079]/50">/</span>
+                              <span className="font-bold text-[#0E3D40]">{acc.storehouse_level}</span>
+                            </span>
+                          </td>
+
+                          {/* Daily Quest Status Toggle */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            {isDailySaving ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2BB673] mx-auto" />
+                            ) : isDone ? (
+                              <button
+                                type="button"
+                                onClick={() => canEditDaily && handleToggleDaily(acc.id, true)}
+                                disabled={!canEditDaily}
+                                title={canEditDaily ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : `Selesai ${completedTimeStr}`}
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs",
+                                  canEditDaily && "hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
+                                )}
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 fill-emerald-100" />
+                                <span>Selesai</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => canEditDaily && handleToggleDaily(acc.id, false)}
+                                disabled={!canEditDaily}
+                                title={canEditDaily ? "Belum daily. Klik jika sudah selesai." : "Belum daily"}
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200",
+                                  canEditDaily && "hover:bg-amber-100 hover:border-amber-300 cursor-pointer active:scale-95"
+                                )}
+                              >
+                                <Circle className="w-2.5 h-2.5 text-amber-600 stroke-[2.5]" />
+                                <span>Belum</span>
+                              </button>
+                            )}
+                          </td>
+
+                          {/* Catatan */}
+                          <td className="py-3 px-4 text-[#6B8079] text-xs max-w-[140px] truncate" title={acc.notes || ''}>
+                            {acc.notes || <span className="opacity-30">—</span>}
+                          </td>
 
                         {/* Resource stocks */}
                         {RESOURCES.map(res => {

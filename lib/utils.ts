@@ -168,3 +168,63 @@ export const STOREHOUSE_CONFIG: Record<number, { food: number; wood: number; sto
   24: { food: 2_000_000, wood: 2_000_000, stone: 1_500_000, gold: 1_000_000 },
   25: { food: 2_500_000, wood: 2_500_000, stone: 2_500_000, gold: 2_500_000 },
 };
+
+/**
+ * Rise of Kingdoms Daily Reset occurs at 00:00:00 UTC every day.
+ * In WIB (UTC+7), this corresponds to exactly 07:00:00 AM WIB.
+ */
+export function getRokDailyCycle(referenceDate: Date = new Date()) {
+  const utcYear = referenceDate.getUTCFullYear();
+  const utcMonth = referenceDate.getUTCMonth();
+  const utcDate = referenceDate.getUTCDate();
+
+  // Start of the current daily cycle (00:00 UTC / 07:00 WIB)
+  const currentCycleStart = new Date(Date.UTC(utcYear, utcMonth, utcDate, 0, 0, 0, 0));
+  // Next reset time (00:00 UTC / 07:00 WIB next day)
+  const nextReset = new Date(Date.UTC(utcYear, utcMonth, utcDate + 1, 0, 0, 0, 0));
+
+  const timeRemainingMs = Math.max(0, nextReset.getTime() - referenceDate.getTime());
+  const hours = Math.floor(timeRemainingMs / (1000 * 60 * 60));
+  const minutes = Math.floor((timeRemainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((timeRemainingMs % (1000 * 60)) / 1000);
+
+  const formattedRemaining = `${String(hours).padStart(2, '0')}j ${String(minutes).padStart(2, '0')}m`;
+  const formattedRemainingDetailed = `${String(hours).padStart(2, '0')}j ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}d`;
+
+  return {
+    currentCycleStart,
+    nextReset,
+    timeRemainingMs,
+    hours,
+    minutes,
+    seconds,
+    formattedRemaining,
+    formattedRemainingDetailed,
+  };
+}
+
+/**
+ * Check if daily quest is completed in the current daily cycle (since last 00:00 UTC / 07:00 WIB reset)
+ */
+export function isDailyCompleted(dailyCompletedAt?: string | null, referenceDate: Date = new Date()): boolean {
+  if (!dailyCompletedAt) return false;
+  const completedDate = new Date(dailyCompletedAt);
+  if (isNaN(completedDate.getTime())) return false;
+
+  const cycleStart = getRokDailyCycle(referenceDate).currentCycleStart;
+  return completedDate.getTime() >= cycleStart.getTime();
+}
+
+/**
+ * Format timestamp when daily was completed for tooltip / detail (in WIB / UTC+7)
+ */
+export function formatDailyCompletedTime(dailyCompletedAt?: string | null): string {
+  if (!dailyCompletedAt) return '';
+  const d = new Date(dailyCompletedAt);
+  if (isNaN(d.getTime())) return '';
+
+  const wibTime = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(wibTime.getUTCHours())}:${pad(wibTime.getUTCMinutes())} WIB`;
+}
+

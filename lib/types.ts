@@ -33,6 +33,7 @@ export interface GameAccount {
   trading_post_level: number;
   storehouse_level: number;
   notes: string | null;
+  daily_completed_at?: string | null;
   created_at: string;
   // Relations (joined)
   kingdom?: Kingdom | string | null;
