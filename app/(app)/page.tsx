@@ -94,7 +94,7 @@ export default function DashboardPage() {
           if (!newStock?.game_account_id) return;
           setAccounts(prev => prev.map(a =>
             a.id === newStock.game_account_id
-              ? { ...a, resource_stock: { ...(a.resource_stock || {}), ...newStock } }
+              ? { ...a, resource_stock: a.resource_stock ? { ...a.resource_stock, ...newStock } : newStock }
               : a
           ));
         }
@@ -352,11 +352,11 @@ export default function DashboardPage() {
       if (error) throw error;
 
       setAccounts(prev => prev.map(a => {
-        if (a.id === accId) {
+        if (a.id === accId && a.resource_stock) {
           return {
             ...a,
             resource_stock: {
-              ...(a.resource_stock || {}),
+              ...a.resource_stock,
               [resource]: cleanValue
             }
           };

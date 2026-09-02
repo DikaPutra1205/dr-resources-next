@@ -411,7 +411,8 @@ export default function GameAccountsPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
