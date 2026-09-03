@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ResourceType } from '@/lib/types';
-import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, TRADING_POST_CONFIG, STOREHOUSE_CONFIG, cn, fmt } from '@/lib/utils';
-import { Loader2, Users, Shield, ChevronDown, ChevronRight } from 'lucide-react';
+import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, TRADING_POST_CONFIG, STOREHOUSE_CONFIG, cn, fmt, formatRelativeTime, formatFullDateTime } from '@/lib/utils';
+import { Loader2, Users, Shield, ChevronDown, ChevronRight, Clock } from 'lucide-react';
 
 export default function NetStockPage() {
   const supabase = createClient();
@@ -12,9 +12,16 @@ export default function NetStockPage() {
   const [loading, setLoading] = useState(true);
   const [activeKingdomKey, setActiveKingdomKey] = useState<string | null>(null);
   const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set());
+  const [now, setNow] = useState<Date>(new Date());
 
   const [globalPrices, setGlobalPrices] = useState<Record<ResourceType, number>>({ food: 0, wood: 0, stone: 0, gold: 0 });
   const [kingdomPrices, setKingdomPrices] = useState<Record<number, Record<ResourceType, number>>>({});
+
+  // Timer for real-time relative timestamp updates
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -226,15 +233,24 @@ export default function NetStockPage() {
               {Array.from(ownerMap.entries()).map(([userId, { label: ownerName, accounts: ownerAccs }]) => {
                 const isCollapsed = collapsedOwners.has(userId);
 
-                // Owner totals
+                // Owner totals & latest update timestamp
                 const ownerNet = { food: 0, wood: 0, stone: 0, gold: 0 };
                 let ownerValue = 0;
+                let latestOwnerUpdate: string | null = null;
+
                 ownerAccs.forEach(acc => {
                   RESOURCES.forEach(res => {
                     const { net } = calcSendable(acc, res);
                     ownerNet[res] += net;
                     ownerValue += (net * getPrice(acc.kingdom_id, res)) / 1_000_000;
                   });
+
+                  const upd = acc.resource_stock?.updated_at;
+                  if (upd) {
+                    if (!latestOwnerUpdate || new Date(upd) > new Date(latestOwnerUpdate)) {
+                      latestOwnerUpdate = upd;
+                    }
+                  }
                 });
 
                 return (
@@ -250,7 +266,23 @@ export default function NetStockPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-white text-sm">{ownerName}</div>
-                        <div className="text-[10px] text-white/60">{ownerAccs.length} akun · Rp {fmt(ownerValue)}</div>
+                        <div className="text-[10px] text-white/60 flex items-center gap-1.5 flex-wrap">
+                          <span>{ownerAccs.length} akun</span>
+                          <span>·</span>
+                          <span>Rp {fmt(ownerValue)}</span>
+                          {latestOwnerUpdate && (
+                            <>
+                              <span>·</span>
+                              <span
+                                className="inline-flex items-center gap-1 text-white/80"
+                                title={`Update terbaru: ${formatFullDateTime(latestOwnerUpdate)}`}
+                              >
+                                <Clock className="w-3 h-3 text-white/60 shrink-0" />
+                                Update: {formatRelativeTime(latestOwnerUpdate, now)}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                       {/* Owner totals inline */}
                       <div className="hidden sm:flex items-center gap-4 mr-3">
@@ -293,13 +325,24 @@ export default function NetStockPage() {
                                 accValue += (net * getPrice(acc.kingdom_id, res)) / 1_000_000;
                               });
 
+                              const updatedAt = acc.resource_stock?.updated_at;
+
                               return (
                                 <tr key={acc.id} className="bg-white hover:bg-[#F7FBF9] transition-colors border-b border-[#E8DDC9]/40 last:border-0">
                                   <td className="py-2.5 px-4 pl-12">
-                                    <div className="font-semibold text-[#0E3D40]">{acc.name}</div>
-                                    <span className={cn("text-[8px] px-1 py-0.5 rounded uppercase tracking-wider border",
-                                      acc.type === 'main' ? "bg-[#0E3D40]/5 border-[#0E3D40]/20 text-[#0E3D40]" : "bg-[#6B8079]/5 border-[#6B8079]/20 text-[#6B8079]"
-                                    )}>{acc.type}</span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-semibold text-[#0E3D40]">{acc.name}</span>
+                                      <span className={cn("text-[8px] px-1 py-0.5 rounded uppercase tracking-wider border font-bold",
+                                        acc.type === 'main' ? "bg-[#0E3D40]/5 border-[#0E3D40]/20 text-[#0E3D40]" : "bg-[#6B8079]/5 border-[#6B8079]/20 text-[#6B8079]"
+                                      )}>{acc.type}</span>
+                                    </div>
+                                    <div
+                                      className="flex items-center gap-1 text-[10px] text-[#6B8079] mt-0.5"
+                                      title={updatedAt ? `Terakhir update: ${formatFullDateTime(updatedAt)}` : 'Belum pernah diupdate'}
+                                    >
+                                      <Clock className="w-3 h-3 text-[#6B8079]/60 shrink-0" />
+                                      <span>Update: <span className="font-medium text-[#0E3D40]/80">{formatRelativeTime(updatedAt, now)}</span></span>
+                                    </div>
                                   </td>
                                   <td className="py-2.5 px-3 text-center font-mono text-[#6B8079]">
                                     {acc.trading_post_level}/{acc.storehouse_level}
@@ -322,7 +365,7 @@ export default function NetStockPage() {
                             <tr className="bg-[#0E3D40]/5 border-t border-[#0E3D40]/10 font-bold">
                                <td className="py-2 px-4 pl-12 text-[10px] text-[#0E3D40]/60 uppercase tracking-wider" colSpan={2}>
                                  Subtotal
-                               </td>
+                                </td>
                                {RESOURCES.map(res => (
                                  <td key={res} className="py-2 px-3 text-right font-mono font-bold text-[#0E3D40] text-xs">
                                    {ownerNet[res] > 0 ? fmt(ownerNet[res]) : '-'}
@@ -346,3 +389,4 @@ export default function NetStockPage() {
     </div>
   );
 }
+

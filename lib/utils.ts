@@ -228,3 +228,56 @@ export function formatDailyCompletedTime(dailyCompletedAt?: string | null): stri
   return `${pad(wibTime.getUTCHours())}:${pad(wibTime.getUTCMinutes())} WIB`;
 }
 
+/**
+ * Format relative time in Indonesian (e.g., "Baru saja", "5 mnt lalu", "2 jam lalu", "Kemarin", "3 hari lalu", "28 Agu 2026")
+ */
+export function formatRelativeTime(dateString?: string | null, referenceDate: Date = new Date()): string {
+  if (!dateString) return 'Belum update';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '-';
+
+  const diffMs = referenceDate.getTime() - d.getTime();
+  if (diffMs < 0) return 'Baru saja';
+
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return 'Baru saja';
+  if (diffMin < 60) return `${diffMin} mnt lalu`;
+  if (diffHour < 24) return `${diffHour} jam lalu`;
+  if (diffDay === 1) return 'Kemarin';
+  if (diffDay < 7) return `${diffDay} hari lalu`;
+
+  const wibTime = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const day = wibTime.getUTCDate();
+  const month = months[wibTime.getUTCMonth()];
+  const year = wibTime.getUTCFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+/**
+ * Format full date and time in Indonesian (WIB / UTC+7) for tooltips/details.
+ * e.g., "3 Sep 2026, 17:20 WIB"
+ */
+export function formatFullDateTime(dateString?: string | null): string {
+  if (!dateString) return 'Belum pernah update';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '-';
+
+  const wibTime = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  const day = wibTime.getUTCDate();
+  const month = months[wibTime.getUTCMonth()];
+  const year = wibTime.getUTCFullYear();
+  const hours = pad(wibTime.getUTCHours());
+  const minutes = pad(wibTime.getUTCMinutes());
+
+  return `${day} ${month} ${year}, ${hours}:${minutes} WIB`;
+}
+
+
