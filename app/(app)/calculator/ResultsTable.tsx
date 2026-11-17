@@ -366,10 +366,22 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                   return `${count}×`;
                 }
 
+                const anyAllIn = RESOURCES.some(res => accData.resources[res]?.is_all_in);
+
                 return (
                   <tr key={accData.account.id} className="hover:bg-[#FAF5EA]/20 transition-colors">
                     <td className="py-2.5 px-3">
-                      <div className="font-bold text-[#0E3D40] text-xs">{accData.account.name}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-[#0E3D40] text-xs">{accData.account.name}</span>
+                        {anyAllIn && (
+                          <span 
+                            title="Akun ini mengirim seluruh stok bersih (Net Stock) yang tersedia!" 
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-xs animate-pulse"
+                          >
+                            ALL IN
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 mt-0.5 text-[10px]">
                         <span className="px-1 py-0.1 rounded text-[8px] font-bold uppercase tracking-wider bg-[#0E3D40]/10 text-[#0E3D40]">{accData.account.type}</span>
                         <span className="text-[#6B8079] font-medium">{(accData.account as any).profile?.name || 'N/A'}</span>

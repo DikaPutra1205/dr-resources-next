@@ -133,7 +133,7 @@ export function calculateProportional(
       );
       r.required_net = Math.floor(r.required_gross * (1 - accData.tax_rate) + 1e-9);
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
-      r.is_all_in = r.sendable_gross > 0 && r.required_gross >= r.sendable_gross;
+      r.is_all_in = (r.sendable_net > 0 && r.required_net >= r.sendable_net) || (r.sendable_gross > 0 && r.required_gross >= r.sendable_gross);
     }
   }
 
@@ -325,7 +325,7 @@ export function calculateSmart(
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
         r.required_net = Math.floor(Math.floor(r.required_gross * (1 - accData.tax_rate)) / 1_000_000) * 1_000_000;
         r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
-        r.is_all_in = r.sendable_gross > 0 && r.required_gross >= r.sendable_gross;
+        r.is_all_in = (r.sendable_net > 0 && r.required_net >= r.sendable_net) || (r.sendable_gross > 0 && r.required_gross >= r.sendable_gross);
       } else {
         r.is_all_in = false;
       }
@@ -479,7 +479,7 @@ export function calculateFairShare(
       accData.resources[res].required_gross = grossNeeded;
       accData.resources[res].required_net = netActual;
       accData.resources[res].trips = calcTrips(netActual, accData.capacity_per_trip);
-      accData.resources[res].is_all_in = accData.resources[res].sendable_gross > 0 && grossNeeded >= accData.resources[res].sendable_gross;
+      accData.resources[res].is_all_in = (accData.resources[res].sendable_net > 0 && netActual >= accData.resources[res].sendable_net) || (accData.resources[res].sendable_gross > 0 && grossNeeded >= accData.resources[res].sendable_gross);
     });
   }
 
@@ -516,7 +516,7 @@ export function calculateManual(
         r.required_net = Math.floor(Math.floor(r.required_gross * (1 - accData.tax_rate)) / 1_000_000) * 1_000_000;
       }
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
-      r.is_all_in = r.sendable_gross > 0 && r.required_gross >= r.sendable_gross;
+      r.is_all_in = (r.sendable_net > 0 && r.required_net >= r.sendable_net) || (r.sendable_gross > 0 && r.required_gross >= r.sendable_gross);
     }
   }
 
