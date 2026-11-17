@@ -133,6 +133,7 @@ export function calculateProportional(
       );
       r.required_net = Math.floor(r.required_gross * (1 - accData.tax_rate) + 1e-9);
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
+      r.is_all_in = r.sendable_gross > 0 && r.required_gross >= r.sendable_gross;
     }
   }
 
@@ -324,6 +325,9 @@ export function calculateSmart(
         r.required_gross = Math.min(grossNeeded, r.sendable_gross);
         r.required_net = Math.floor(Math.floor(r.required_gross * (1 - accData.tax_rate)) / 1_000_000) * 1_000_000;
         r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
+        r.is_all_in = r.sendable_gross > 0 && r.required_gross >= r.sendable_gross;
+      } else {
+        r.is_all_in = false;
       }
     }
   }
@@ -336,6 +340,12 @@ export function calculateSmart(
       { food: accData.resources.food.required_net, wood: accData.resources.wood.required_net, stone: accData.resources.stone.required_net, gold: accData.resources.gold.required_net },
       accData.capacity_per_trip,
       accData.tax_rate,
+      {
+        food: !!accData.resources.food.is_all_in,
+        wood: !!accData.resources.wood.is_all_in,
+        stone: !!accData.resources.stone.is_all_in,
+        gold: !!accData.resources.gold.is_all_in,
+      }
     );
   }
 
@@ -356,6 +366,7 @@ export function calculateSequentialTrips(
   assigned: Record<ResourceType, number>,
   capacity: number,
   taxRate: number,
+  isAllInMap?: Record<ResourceType, boolean>,
 ): any[] {
   const remaining: Record<ResourceType, number> = { ...assigned };
   const resources: ResourceType[] = ['food', 'wood', 'stone', 'gold'];
@@ -370,6 +381,7 @@ export function calculateSequentialTrips(
         trip[res] = {
           net: capacity,
           gross: Math.ceil(capacity / (1 - taxRate)),
+          is_all_in: !!isAllInMap?.[res],
         };
         remaining[res] -= capacity;
       } else {
@@ -377,6 +389,7 @@ export function calculateSequentialTrips(
         trip[res] = {
           net: netPart,
           gross: Math.ceil(netPart / (1 - taxRate)),
+          is_all_in: !!isAllInMap?.[res],
         };
         remaining[res] = 0;
 
@@ -389,6 +402,7 @@ export function calculateSequentialTrips(
             trip[nextRes] = {
               net: take,
               gross: Math.ceil(take / (1 - taxRate)),
+              is_all_in: !!isAllInMap?.[nextRes],
             };
             remaining[nextRes] -= take;
             left -= take;
@@ -465,6 +479,7 @@ export function calculateFairShare(
       accData.resources[res].required_gross = grossNeeded;
       accData.resources[res].required_net = netActual;
       accData.resources[res].trips = calcTrips(netActual, accData.capacity_per_trip);
+      accData.resources[res].is_all_in = accData.resources[res].sendable_gross > 0 && grossNeeded >= accData.resources[res].sendable_gross;
     });
   }
 
@@ -501,6 +516,7 @@ export function calculateManual(
         r.required_net = Math.floor(Math.floor(r.required_gross * (1 - accData.tax_rate)) / 1_000_000) * 1_000_000;
       }
       r.trips = calcTrips(r.required_net, accData.capacity_per_trip);
+      r.is_all_in = r.sendable_gross > 0 && r.required_gross >= r.sendable_gross;
     }
   }
 
@@ -512,6 +528,12 @@ export function calculateManual(
       { food: accData.resources.food.required_net, wood: accData.resources.wood.required_net, stone: accData.resources.stone.required_net, gold: accData.resources.gold.required_net },
       accData.capacity_per_trip,
       accData.tax_rate,
+      {
+        food: !!accData.resources.food.is_all_in,
+        wood: !!accData.resources.wood.is_all_in,
+        stone: !!accData.resources.stone.is_all_in,
+        gold: !!accData.resources.gold.is_all_in,
+      }
     );
   }
 

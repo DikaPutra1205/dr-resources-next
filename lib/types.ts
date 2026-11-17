@@ -144,6 +144,7 @@ export interface ResourceData {
   required_gross: number;
   required_net: number;
   trips: number;
+  is_all_in?: boolean;
 }
 
 export interface AccountCalcData {

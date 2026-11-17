@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { GameAccount, ResourcePrices, ResourceType, Profile, Kingdom } from '@/lib/types';
 import { RESOURCES, RESOURCE_LABELS, RESOURCE_DOT, RESOURCE_BORDER, cn, parseShorthand, formatInput } from '@/lib/utils';
 import { calculateSmart, calculateManual } from '@/lib/calculator';
-import { Loader2, Calculator as CalcIcon, AlertTriangle } from 'lucide-react';
+import { Loader2, Calculator as CalcIcon, AlertTriangle, Search } from 'lucide-react';
 import ResultsTable from './ResultsTable';
 
 export default function CalculatorPage() {
@@ -24,6 +24,7 @@ export default function CalculatorPage() {
   const [activeTab, setActiveTab] = useState<'single' | 'selected' | 'multi' | 'manual'>('single');
   const [kingdomId, setKingdomId] = useState<number | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [accountSearch, setAccountSearch] = useState<string>('');
   
   // Inputs (Targets)
   const [targets, setTargets] = useState<Record<ResourceType, string>>({ food: '', wood: '', stone: '', gold: '' });
@@ -159,9 +160,17 @@ export default function CalculatorPage() {
     { id: 'manual', label: 'Manual Input (Net)' },
   ];
 
-  // Group accounts by owner name (taking selected kingdom into account)
+  // Group accounts by owner name (taking selected kingdom and search into account)
   const groupedAccounts: Record<string, GameAccount[]> = {};
-  const filteredAllAccounts = allAccounts.filter(acc => kingdomId === null || acc.kingdom_id === kingdomId);
+  const searchLower = accountSearch.trim().toLowerCase();
+  const filteredAllAccounts = allAccounts.filter(acc => {
+    if (kingdomId !== null && acc.kingdom_id !== kingdomId) return false;
+    if (searchLower) {
+      const ownerName = profiles.find(p => p.id === acc.user_id)?.name || '';
+      return acc.name.toLowerCase().includes(searchLower) || ownerName.toLowerCase().includes(searchLower);
+    }
+    return true;
+  });
   filteredAllAccounts.forEach(acc => {
     const ownerName = profiles.find(p => p.id === acc.user_id)?.name || 'Tanpa Pemilik';
     if (!groupedAccounts[ownerName]) {
@@ -291,7 +300,7 @@ export default function CalculatorPage() {
           {/* Tab 2 specific: Select Accounts Checkboxes */}
           {activeTab === 'selected' && (
             <div className="card p-6">
-              <div className="flex items-center justify-between mb-4 border-b border-[#E8DDC9] pb-2">
+              <div className="flex items-center justify-between mb-3 border-b border-[#E8DDC9] pb-2">
                 <h3 className="text-sm font-bold text-[#0E3D40] uppercase tracking-wider">Pilih Akun Game</h3>
                 <div className="flex gap-2">
                   <button 
@@ -310,6 +319,27 @@ export default function CalculatorPage() {
                     Hapus
                   </button>
                 </div>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative mb-3">
+                <Search className="w-3.5 h-3.5 text-[#6B8079] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari akun atau pemilik..."
+                  value={accountSearch}
+                  onChange={e => setAccountSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#FAF5EA]/50 border border-[#E8DDC9] rounded-lg text-xs text-[#0E3D40] placeholder-[#6B8079]/60 focus:border-[#2BB673] focus:ring focus:ring-[#2BB673]/20 outline-none font-medium"
+                />
+                {accountSearch && (
+                  <button 
+                    type="button" 
+                    onClick={() => setAccountSearch('')} 
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#6B8079] hover:text-[#0E3D40]"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               
               <div className="max-h-80 overflow-y-auto space-y-4 border border-[#E8DDC9] rounded-lg p-3 bg-[#FAF5EA]/30">
@@ -397,7 +427,7 @@ export default function CalculatorPage() {
           {/* Tab 4 specific: Contributor Accounts Checklist */}
           {activeTab === 'manual' && (
             <div className="card p-6">
-              <div className="flex items-center justify-between mb-4 border-b border-[#E8DDC9] pb-2">
+              <div className="flex items-center justify-between mb-3 border-b border-[#E8DDC9] pb-2">
                 <h3 className="text-sm font-bold text-[#0E3D40] uppercase tracking-wider">Akun Kontributor</h3>
                 <div className="flex gap-2">
                   <button 
@@ -416,6 +446,27 @@ export default function CalculatorPage() {
                     Hapus
                   </button>
                 </div>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative mb-3">
+                <Search className="w-3.5 h-3.5 text-[#6B8079] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari akun atau pemilik..."
+                  value={accountSearch}
+                  onChange={e => setAccountSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#FAF5EA]/50 border border-[#E8DDC9] rounded-lg text-xs text-[#0E3D40] placeholder-[#6B8079]/60 focus:border-[#2BB673] focus:ring focus:ring-[#2BB673]/20 outline-none font-medium"
+                />
+                {accountSearch && (
+                  <button 
+                    type="button" 
+                    onClick={() => setAccountSearch('')} 
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#6B8079] hover:text-[#0E3D40]"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               
               <div className="max-h-80 overflow-y-auto space-y-4 border border-[#E8DDC9] rounded-lg p-3 bg-[#FAF5EA]/30">

@@ -317,9 +317,15 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
             </svg>
             Rencana Kontribusi Akun
           </h3>
-          <span className="px-2 py-0.5 text-[10px] font-bold bg-[#2BB673]/10 text-[#2BB673] rounded-full">
-            {accountsData.filter((accData: AccountCalcData) => RESOURCES.some(res => accData.resources[res].required_gross > 0)).length} Akun
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-full" title="Tanda bahwa resource akun dikirim sampai habis (tersisa proteksi storehouse saja)">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+              ALL IN = Kirim Habis (Sisa Storehouse)
+            </span>
+            <span className="px-2 py-0.5 text-[10px] font-bold bg-[#2BB673]/10 text-[#2BB673] rounded-full">
+              {accountsData.filter((accData: AccountCalcData) => RESOURCES.some(res => accData.resources[res].required_gross > 0)).length} Akun
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -376,7 +382,17 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                       if (r.required_gross <= 0) return <td key={res} className="py-2.5 px-3 text-right text-[#6B8079]/30">-</td>;
                       return (
                         <td key={res} className="py-2.5 px-3 text-right whitespace-nowrap font-medium font-mono">
-                          <span className="text-[#2BB673] font-bold block">+{fmt(r.required_net)}</span>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {r.is_all_in && (
+                              <span 
+                                title="ALL IN: Mengirim seluruh stok akun sampai menyisakan batas storehouse!" 
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-xs cursor-help animate-pulse"
+                              >
+                                ALL IN
+                              </span>
+                            )}
+                            <span className="text-[#2BB673] font-bold block">+{fmt(r.required_net)}</span>
+                          </div>
                           <span className="text-[9px] text-[#6B8079]/75 block">Gross: {fmt(r.required_gross)}</span>
                           <span className="text-[8px] text-[#0E3D40]/60 block mt-0.5">{resTripInfo(res)}</span>
                         </td>
@@ -648,13 +664,18 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
                       <div className="space-y-1">
                         {Object.entries(trip.resources).map(([resName, resVal]: any) => (
                           <div key={resName} className="flex items-center justify-between text-xs">
-                            <span className="capitalize font-semibold text-[#6B8079] flex items-center gap-1">
+                            <span className="capitalize font-semibold text-[#6B8079] flex items-center gap-1.5">
                               <span className={cn('w-1.5 h-1.5 rounded-full', RESOURCE_DOT[resName as ResourceType])}></span>
                               {resName}
+                              {resVal.is_all_in && (
+                                <span className="px-1 py-0.2 rounded text-[7px] font-black uppercase tracking-wider bg-rose-500 text-white">
+                                  ALL IN
+                                </span>
+                              )}
                             </span>
                             <div className="text-right">
-                          <span className="font-bold text-[#0E3D40] font-mono">{fmt(resVal.gross)}</span>
-                          <span className="text-[9px] text-[#6B8079]/70 font-mono block">Net: {fmt(resVal.net)}</span>
+                              <span className="font-bold text-[#0E3D40] font-mono">{fmt(resVal.gross)}</span>
+                              <span className="text-[9px] text-[#6B8079]/70 font-mono block">Net: {fmt(resVal.net)}</span>
                             </div>
                           </div>
                         ))}

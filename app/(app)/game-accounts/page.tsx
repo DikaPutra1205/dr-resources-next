@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GameAccount, Kingdom, ResourceType, Profile } from '@/lib/types';
-import { Plus, Edit2, Trash2, Loader2, Save, Check, Shield, X, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Save, Check, Shield, X, CheckCircle2, Circle, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { log } from '@/lib/logger';
 import {
   RESOURCES,
@@ -30,6 +30,8 @@ export default function GameAccountsPage() {
 
   const [now, setNow] = useState<Date>(new Date());
   const [savingDaily, setSavingDaily] = useState<Record<number, boolean>>({});
+  const [activeKingdomKey, setActiveKingdomKey] = useState<string | null>(null);
+  const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set());
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formAccount, setFormAccount] = useState<Partial<GameAccount>>({});
@@ -108,7 +110,15 @@ export default function GameAccountsPage() {
     if (acc) {
       setFormAccount(acc);
     } else {
-      setFormAccount({ name: '', type: 'main', trading_post_level: 25, storehouse_level: 25, kingdom_id: kingdoms[0]?.id || null, notes: '', user_id: userId });
+      setFormAccount({
+        name: '',
+        type: 'main',
+        trading_post_level: 25,
+        storehouse_level: 25,
+        kingdom_id: (activeGroup?.kingdomId) || kingdoms[0]?.id || null,
+        notes: '',
+        user_id: userId
+      });
     }
     setIsModalOpen(true);
   }
@@ -161,15 +171,55 @@ export default function GameAccountsPage() {
 
   // Group accounts by kingdom
   const kingdomGroups = useMemo(() => {
-    const map = new Map<string, { kingdomId: number | null; kingdomName: string; colorHex: string; accounts: GameAccount[] }>();
+    const map = new Map<string, { key: string; kingdomId: number | null; kingdomName: string; colorHex: string; accounts: GameAccount[] }>();
     accounts.forEach(acc => {
       const kd = acc.kingdom as any;
       const key = String(kd?.id ?? 'none');
-      if (!map.has(key)) map.set(key, { kingdomId: kd?.id ?? null, kingdomName: kd?.name ?? 'Tanpa Kingdom', colorHex: kd?.color_hex ?? '#6B8079', accounts: [] });
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          kingdomId: kd?.id ?? null,
+          kingdomName: kd?.name ?? 'Tanpa Kingdom',
+          colorHex: kd?.color_hex ?? '#2BB673',
+          accounts: []
+        });
+      }
       map.get(key)!.accounts.push(acc);
     });
     return Array.from(map.values()).sort((a, b) => a.kingdomName.localeCompare(b.kingdomName));
   }, [accounts]);
+
+  // Set default tab
+  useEffect(() => {
+    if (kingdomGroups.length > 0 && (activeKingdomKey === null || !kingdomGroups.some(g => g.key === activeKingdomKey))) {
+      setActiveKingdomKey(kingdomGroups[0].key);
+    }
+  }, [kingdomGroups, activeKingdomKey]);
+
+  const activeGroup = kingdomGroups.find(g => g.key === activeKingdomKey) ?? kingdomGroups[0] ?? null;
+
+  // Group active kingdom accounts by owner
+  const ownerMap = useMemo(() => {
+    if (!activeGroup) return new Map<string, { userId: string; ownerName: string; accounts: GameAccount[] }>();
+    const map = new Map<string, { userId: string; ownerName: string; accounts: GameAccount[] }>();
+    activeGroup.accounts.forEach(acc => {
+      const uid = acc.user_id || 'unknown';
+      const uName = (acc as any).profile?.name || 'Tanpa Pemilik';
+      if (!map.has(uid)) {
+        map.set(uid, { userId: uid, ownerName: uName, accounts: [] });
+      }
+      map.get(uid)!.accounts.push(acc);
+    });
+    return new Map(Array.from(map.entries()).sort((a, b) => a[1].ownerName.localeCompare(b[1].ownerName)));
+  }, [activeGroup]);
+
+  function toggleOwner(key: string) {
+    setCollapsedOwners(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[#2BB673]" /></div>;
 
@@ -206,216 +256,257 @@ export default function GameAccountsPage() {
         </span>
       </div>
 
-      {/* Kingdom groups */}
+      {/* Kingdom Tabs & Accounts grouped by Owner */}
       {accounts.length === 0 ? (
         <div className="card p-12 text-center text-[#6B8079]">Belum ada akun game.</div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {kingdomGroups.map(group => (
-            <div key={group.kingdomName} className="card overflow-hidden">
-              {/* Kingdom header */}
-              <div
-                className="flex items-center gap-3 px-5 py-3.5 border-b border-[#E8DDC9]"
-                style={{ backgroundColor: `${group.colorHex}12` }}
+        <div className="card overflow-hidden">
+          {/* Kingdom Tab Bar */}
+          <div className="flex overflow-x-auto border-b border-[#E8DDC9] bg-[#FAF5EA]">
+            {kingdomGroups.map(group => (
+              <button
+                key={group.key}
+                type="button"
+                onClick={() => setActiveKingdomKey(group.key)}
+                className={cn(
+                  "flex items-center gap-2 px-5 py-3.5 text-sm font-bold whitespace-nowrap border-b-2 transition-all shrink-0",
+                  activeKingdomKey === group.key
+                    ? "border-[#2BB673] text-[#0E3D40] bg-white shadow-xs"
+                    : "border-transparent text-[#6B8079] hover:text-[#0E3D40] hover:bg-[#FAF5EA]/80"
+                )}
               >
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: group.colorHex }} />
-                <span className="font-extrabold text-sm tracking-tight" style={{ color: group.colorHex }}>
-                  {group.kingdomName}
+                <div
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: group.colorHex }}
+                />
+                <Shield className="w-3.5 h-3.5 text-[#2BB673]" />
+                {group.kingdomName}
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                  activeKingdomKey === group.key ? "bg-[#2BB673]/15 text-[#2BB673]" : "bg-[#E8DDC9] text-[#6B8079]"
+                )}>
+                  {group.accounts.length}
                 </span>
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: `${group.colorHex}20`, color: group.colorHex }}
-                >
-                  {group.accounts.length} akun
-                </span>
-              </div>
+              </button>
+            ))}
+          </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-[#FAF5EA] border-b border-[#E8DDC9] text-[#5C6E6E] text-[10px] uppercase tracking-wider">
-                      <th className="py-2.5 px-5 font-bold">Nama Akun</th>
-                      {isAdmin && <th className="py-2.5 px-4 font-bold">Pemilik</th>}
-                      <th className="py-2.5 px-4 text-center font-bold">TP / SH</th>
-                      <th className="py-2.5 px-3 text-center font-bold">Daily</th>
-                      <th className="py-2.5 px-4 font-bold">Catatan</th>
-                      {RESOURCES.map(res => (
-                        <th key={res} className="py-2.5 px-4 text-right font-bold">
-                          <div className="flex items-center justify-end gap-1">
-                            <div className={cn('w-1.5 h-1.5 rounded-full', RESOURCE_DOT[res])} />
-                            {RESOURCE_LABELS[res]}
-                          </div>
-                        </th>
-                      ))}
-                      <th className="py-2.5 px-4 text-center font-bold">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.accounts.map((acc, idx) => {
-                      const isDone = isDailyCompleted(acc.daily_completed_at, now);
-                      const isDailySaving = savingDaily[acc.id];
-                      const canEditDaily = acc.user_id === userId || isAdmin;
-                      const completedTimeStr = isDone ? formatDailyCompletedTime(acc.daily_completed_at) : '';
+          {/* Active Kingdom Content: Grouped by Owner */}
+          {activeGroup && (
+            <div className="flex flex-col gap-3 p-3">
+              {Array.from(ownerMap.entries()).map(([ownerId, { ownerName, accounts: ownerAccs }]) => {
+                const isCollapsed = collapsedOwners.has(ownerId);
+                const doneCount = ownerAccs.filter(a => isDailyCompleted(a.daily_completed_at, now)).length;
 
-                      return (
-                        <tr
-                          key={acc.id}
-                          className={cn(
-                            'hover:bg-[#FAF5EA]/60 transition-colors',
-                            idx !== group.accounts.length - 1 && 'border-b border-[#E8DDC9]/50'
-                          )}
-                        >
-                          {/* Nama & badge */}
-                          <td className="py-3 px-5">
-                            <div className="font-bold text-[#0E3D40] leading-tight">{acc.name}</div>
-                            <span className={cn(
-                              'text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-0.5 inline-block',
-                              acc.type === 'main' ? 'bg-[#0E3D40] text-white' : 'bg-[#E8DDC9] text-[#5C6E6E]'
-                            )}>
-                              {acc.type}
-                            </span>
-                          </td>
+                return (
+                  <div key={ownerId} className="rounded-xl border border-[#E8DDC9] overflow-hidden shadow-sm">
+                    {/* Owner Header (collapsible) */}
+                    <button
+                      type="button"
+                      onClick={() => toggleOwner(ownerId)}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-[#0E3D40] hover:bg-[#0E3D40]/90 transition-colors text-left"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+                        <Users className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-white text-sm">{ownerName}</div>
+                        <div className="text-[10px] text-white/60 flex items-center gap-2 flex-wrap">
+                          <span>{ownerAccs.length} akun</span>
+                          <span>·</span>
+                          <span className={cn(
+                            "font-medium",
+                            doneCount === ownerAccs.length ? "text-emerald-300" : "text-amber-200"
+                          )}>
+                            Daily: {doneCount}/{ownerAccs.length} selesai
+                          </span>
+                        </div>
+                      </div>
+                      {isCollapsed ? (
+                        <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-white/60 shrink-0" />
+                      )}
+                    </button>
 
-                          {/* Pemilik (admin only) */}
-                          {isAdmin && (
-                            <td className="py-3 px-4">
-                              <span className="text-xs font-medium text-[#0E3D40] bg-[#0E3D40]/5 px-2 py-0.5 rounded-full">
-                                {(acc as any).profile?.name || '-'}
-                              </span>
-                            </td>
-                          )}
+                    {/* Table for this Owner */}
+                    {!isCollapsed && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                          <thead>
+                            <tr className="bg-[#FAF5EA] border-b border-[#E8DDC9] text-[#5C6E6E] text-[10px] uppercase tracking-wider">
+                              <th className="py-2.5 px-4 font-bold">Nama Akun</th>
+                              <th className="py-2.5 px-3 text-center font-bold">TP / SH</th>
+                              <th className="py-2.5 px-3 text-center font-bold">Daily</th>
+                              <th className="py-2.5 px-4 font-bold">Catatan</th>
+                              {RESOURCES.map(res => (
+                                <th key={res} className="py-2.5 px-4 text-right font-bold">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <div className={cn('w-1.5 h-1.5 rounded-full', RESOURCE_DOT[res])} />
+                                    {RESOURCE_LABELS[res]}
+                                  </div>
+                                </th>
+                              ))}
+                              <th className="py-2.5 px-4 text-center font-bold">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#E8DDC9]/30">
+                            {ownerAccs.map((acc) => {
+                              const isDone = isDailyCompleted(acc.daily_completed_at, now);
+                              const isDailySaving = savingDaily[acc.id];
+                              const canEditDaily = acc.user_id === userId || isAdmin;
+                              const completedTimeStr = isDone ? formatDailyCompletedTime(acc.daily_completed_at) : '';
 
-                          {/* TP / SH */}
-                          <td className="py-3 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 font-mono text-xs bg-[#E8DDC9]/40 px-2 py-1 rounded-lg">
-                              <span className="font-bold text-[#0E3D40]">{acc.trading_post_level}</span>
-                              <span className="text-[#6B8079]/50">/</span>
-                              <span className="font-bold text-[#0E3D40]">{acc.storehouse_level}</span>
-                            </span>
-                          </td>
+                              return (
+                                <tr
+                                  key={acc.id}
+                                  className="hover:bg-[#FAF5EA]/60 transition-colors bg-white"
+                                >
+                                  {/* Nama & badge */}
+                                  <td className="py-3 px-4">
+                                    <div className="font-bold text-[#0E3D40] leading-tight">{acc.name}</div>
+                                    <span className={cn(
+                                      'text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-0.5 inline-block',
+                                      acc.type === 'main' ? 'bg-[#0E3D40] text-white' : 'bg-[#E8DDC9] text-[#5C6E6E]'
+                                    )}>
+                                      {acc.type}
+                                    </span>
+                                  </td>
 
-                          {/* Daily Quest Status Toggle */}
-                          <td
-                            className="py-3 px-3 text-center whitespace-nowrap cursor-pointer hover:bg-black/5 transition-colors select-none"
-                            onClick={() => !isDailySaving && handleToggleDaily(acc.id, isDone)}
-                            title={isDone ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : "Belum daily. Klik jika sudah selesai."}
-                          >
-                            {isDailySaving ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2BB673] mx-auto" />
-                            ) : isDone ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleDaily(acc.id, true);
-                                }}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
-                              >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600 fill-emerald-100" />
-                                <span>Selesai</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleDaily(acc.id, false);
-                                }}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer active:scale-95"
-                              >
-                                <Circle className="w-2.5 h-2.5 text-amber-600 stroke-[2.5]" />
-                                <span>Belum</span>
-                              </button>
-                            )}
-                          </td>
+                                  {/* TP / SH */}
+                                  <td className="py-3 px-3 text-center">
+                                    <span className="inline-flex items-center gap-1 font-mono text-xs bg-[#E8DDC9]/40 px-2 py-1 rounded-lg">
+                                      <span className="font-bold text-[#0E3D40]">{acc.trading_post_level}</span>
+                                      <span className="text-[#6B8079]/50">/</span>
+                                      <span className="font-bold text-[#0E3D40]">{acc.storehouse_level}</span>
+                                    </span>
+                                  </td>
 
-                          {/* Catatan */}
-                          <td className="py-3 px-4 text-[#6B8079] text-xs max-w-[140px] truncate" title={acc.notes || ''}>
-                            {acc.notes || <span className="opacity-30">—</span>}
-                          </td>
+                                  {/* Daily Quest Status Toggle */}
+                                  <td
+                                    className="py-3 px-3 text-center whitespace-nowrap cursor-pointer hover:bg-black/5 transition-colors select-none"
+                                    onClick={() => !isDailySaving && handleToggleDaily(acc.id, isDone)}
+                                    title={isDone ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : "Belum daily. Klik jika sudah selesai."}
+                                  >
+                                    {isDailySaving ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2BB673] mx-auto" />
+                                    ) : isDone ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleDaily(acc.id, true);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
+                                      >
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600 fill-emerald-100" />
+                                        <span>Selesai</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleDaily(acc.id, false);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer active:scale-95"
+                                      >
+                                        <Circle className="w-2.5 h-2.5 text-amber-600 stroke-[2.5]" />
+                                        <span>Belum</span>
+                                      </button>
+                                    )}
+                                  </td>
 
-                        {/* Resource stocks */}
-                        {RESOURCES.map(res => {
-                          const isEditing = editingStock?.id === acc.id && editingStock?.resource === res;
-                          const stockVal = acc.resource_stock?.[res] ?? 0;
-                          const canEdit = acc.user_id === userId || isAdmin;
+                                  {/* Catatan */}
+                                  <td className="py-3 px-4 text-[#6B8079] text-xs max-w-[140px] truncate" title={acc.notes || ''}>
+                                    {acc.notes || <span className="opacity-30">—</span>}
+                                  </td>
 
-                          return (
-                            <td
-                              key={res}
-                              className="py-3 px-4 text-right font-mono"
-                              onClick={() => {
-                                if (!isEditing && canEdit) {
-                                  setEditingStock({ id: acc.id, resource: res });
-                                  setStockInput(stockVal > 0 ? stockVal.toString() : '');
-                                }
-                              }}
-                            >
-                              {isEditing ? (
-                                <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                  <input
-                                    autoFocus
-                                    type="text"
-                                    value={formatInput(stockInput)}
-                                    onChange={e => setStockInput(e.target.value)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter') handleSaveStock(acc.id, res);
-                                      if (e.key === 'Escape') setEditingStock(null);
-                                    }}
-                                    className={cn('w-20 text-right text-xs py-1 px-2 border rounded shadow-inner outline-none', RESOURCE_BORDER[res])}
-                                  />
-                                  <button type="button" onClick={() => handleSaveStock(acc.id, res)}
-                                    className="p-0.5 text-emerald-600 hover:text-emerald-800 bg-emerald-50 rounded border border-emerald-300 shrink-0">
-                                    <Check className="w-3 h-3 stroke-[3]" />
-                                  </button>
-                                  <button type="button" onClick={() => setEditingStock(null)}
-                                    className="p-0.5 text-red-500 hover:text-red-700 bg-red-50 rounded border border-red-300 shrink-0">
-                                    <X className="w-3 h-3 stroke-[3]" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className={cn(
-                                  'group inline-flex items-center gap-1.5 px-2 py-1 rounded transition-colors',
-                                  canEdit && 'cursor-pointer hover:bg-black/5',
-                                  stockVal > 0 ? 'text-[#0E3D40] font-semibold' : 'text-[#6B8079]/30'
-                                )}>
-                                  {stockVal > 0 && <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', RESOURCE_DOT[res])} />}
-                                  <span>{fmt(stockVal)}</span>
-                                  {canEdit && <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-40 transition-opacity text-[#2BB673]" />}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
+                                  {/* Resource stocks */}
+                                  {RESOURCES.map(res => {
+                                    const isEditing = editingStock?.id === acc.id && editingStock?.resource === res;
+                                    const stockVal = acc.resource_stock?.[res] ?? 0;
+                                    const canEdit = acc.user_id === userId || isAdmin;
 
-                        {/* Aksi */}
-                        <td className="py-3 px-4 text-center">
-                          {(acc.user_id === userId || isAdmin) && (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button onClick={() => handleOpenModal(acc)}
-                                className="p-1.5 text-[#6B8079] hover:text-[#2BB673] hover:bg-[#2BB673]/10 rounded-lg transition-colors"
-                                title="Edit">
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              {isAdmin && (
-                                <button onClick={() => handleDelete(acc.id)}
-                                  className="p-1.5 text-[#6B8079] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Hapus">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  </tbody>
-                </table>
-              </div>
+                                    return (
+                                      <td
+                                        key={res}
+                                        className="py-3 px-4 text-right font-mono"
+                                        onClick={() => {
+                                          if (!isEditing && canEdit) {
+                                            setEditingStock({ id: acc.id, resource: res });
+                                            setStockInput(stockVal > 0 ? stockVal.toString() : '');
+                                          }
+                                        }}
+                                      >
+                                        {isEditing ? (
+                                          <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                            <input
+                                              autoFocus
+                                              type="text"
+                                              value={formatInput(stockInput)}
+                                              onChange={e => setStockInput(e.target.value)}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') handleSaveStock(acc.id, res);
+                                                if (e.key === 'Escape') setEditingStock(null);
+                                              }}
+                                              className={cn('w-20 text-right text-xs py-1 px-2 border rounded shadow-inner outline-none', RESOURCE_BORDER[res])}
+                                            />
+                                            <button type="button" onClick={() => handleSaveStock(acc.id, res)}
+                                              className="p-0.5 text-emerald-600 hover:text-emerald-800 bg-emerald-50 rounded border border-emerald-300 shrink-0">
+                                              <Check className="w-3 h-3 stroke-[3]" />
+                                            </button>
+                                            <button type="button" onClick={() => setEditingStock(null)}
+                                              className="p-0.5 text-red-500 hover:text-red-700 bg-red-50 rounded border border-red-300 shrink-0">
+                                              <X className="w-3 h-3 stroke-[3]" />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className={cn(
+                                            'group inline-flex items-center gap-1.5 px-2 py-1 rounded transition-colors',
+                                            canEdit && 'cursor-pointer hover:bg-black/5',
+                                            stockVal > 0 ? 'text-[#0E3D40] font-semibold' : 'text-[#6B8079]/30'
+                                          )}>
+                                            {stockVal > 0 && <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', RESOURCE_DOT[res])} />}
+                                            <span>{fmt(stockVal)}</span>
+                                            {canEdit && <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-40 transition-opacity text-[#2BB673]" />}
+                                          </div>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+
+                                  {/* Aksi */}
+                                  <td className="py-3 px-4 text-center">
+                                    {(acc.user_id === userId || isAdmin) && (
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <button onClick={() => handleOpenModal(acc)}
+                                          className="p-1.5 text-[#6B8079] hover:text-[#2BB673] hover:bg-[#2BB673]/10 rounded-lg transition-colors"
+                                          title="Edit">
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        {isAdmin && (
+                                          <button onClick={() => handleDelete(acc.id)}
+                                            className="p-1.5 text-[#6B8079] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Hapus">
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       )}
 
