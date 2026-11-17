@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { CalcTotals, AccountCalcData, ResourcePrices, ResourceType } from '@/lib/types';
 import { RESOURCES, RESOURCE_DOT, RESOURCE_LABELS, cn, fmt, formatInput, parseShorthand } from '@/lib/utils';
 import { log } from '@/lib/logger';
-import { AlertTriangle, Info, Package, Loader2, Upload, X as XIcon, Coins, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Info, Package, Loader2, Upload, X as XIcon, Coins, Plus, Trash2, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { calculateSequentialTrips } from '@/lib/calculator';
 
@@ -24,7 +24,7 @@ function parseNum(val: string): number {
   return parseShorthand(val);
 }
 
-export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms, hasAnyInput }: any) {
+export default function ResultsTable({ result, prices, activeTab, supabase, userId, kingdomId, kingdoms, hasAnyInput, ownerShares, profiles }: any) {
   const router = useRouter();
   const { accountsData, totals, warnings = [] } = result;
 
@@ -155,6 +155,71 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
 
   const grandTotal = (totals?.estimated_value || 0) + totalCommission;
 
+  // Owner Breakdown for Multi-Anggota
+  const ownerBreakdown = useMemo(() => {
+    if (activeTab !== 'multi' || !ownerShares) return [];
+    const totalOrderVal = totals?.estimated_value || 0;
+
+    const map = new Map<string, {
+      userId: string;
+      name: string;
+      targetPct: number;
+      targetVal: number;
+      actualNet: Record<ResourceType, number>;
+      actualVal: number;
+      accountsCount: number;
+    }>();
+
+    Object.entries(ownerShares as Record<string, string>).forEach(([uid, shareStr]) => {
+      const p = profiles?.find((prof: any) => prof.id === uid);
+      const targetPct = parseFloat(shareStr) || 0;
+      map.set(uid, {
+        userId: uid,
+        name: p?.name || 'Anggota',
+        targetPct,
+        targetVal: (totalOrderVal * targetPct) / 100,
+        actualNet: { food: 0, wood: 0, stone: 0, gold: 0 },
+        actualVal: 0,
+        accountsCount: 0,
+      });
+    });
+
+    const touchedAccounts = new Set<number>();
+    ((accountsData as AccountCalcData[]) || []).forEach(accData => {
+      const uid = (accData.account as any).user_id;
+      if (!uid) return;
+      if (!map.has(uid)) {
+        const p = profiles?.find((prof: any) => prof.id === uid);
+        map.set(uid, {
+          userId: uid,
+          name: p?.name || 'Anggota',
+          targetPct: 0,
+          targetVal: 0,
+          actualNet: { food: 0, wood: 0, stone: 0, gold: 0 },
+          actualVal: 0,
+          accountsCount: 0,
+        });
+      }
+
+      const entry = map.get(uid)!;
+      let accHasSend = false;
+      RESOURCES.forEach(res => {
+        const net = accData.resources[res].required_net;
+        if (net > 0) {
+          accHasSend = true;
+          entry.actualNet[res] += net;
+          entry.actualVal += (net * (prices?.[res] || 0)) / 1_000_000;
+        }
+      });
+      if (accHasSend && !touchedAccounts.has(accData.account.id)) {
+        touchedAccounts.add(accData.account.id);
+        entry.accountsCount++;
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.targetPct - a.targetPct);
+  }, [activeTab, ownerShares, profiles, accountsData, totals, prices]);
+
   // Empty states
   if (!totals || (totals.total_trips === 0 && warnings.length === 0)) {
     if (!hasAnyInput) {
@@ -182,6 +247,16 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
 
   async function handleSaveTransaction() {
     if (warnings.length > 0) return alert('Terdapat akun dengan input melebihi stok. Perbaiki dulu sebelum menyimpan.');
+
+    // Validate rate/price is > 0 for all ordered resources
+    for (const res of RESOURCES) {
+      const receivedNet = totals[`${res}_received`] || 0;
+      if (receivedNet > 0 && (!prices?.[res] || prices[res] <= 0)) {
+        alert(`Harga/Rate per juta untuk ${RESOURCE_LABELS[res]} wajib diisi dan harus lebih dari 0.`);
+        return;
+      }
+    }
+
     if (!imageFile) return alert('Bukti transfer wajib diisi.');
     if (!toName) return alert('Nama penerima harus diisi.');
     if (!sentAt) return alert('Tanggal & waktu pengiriman harus diisi.');
@@ -304,6 +379,90 @@ export default function ResultsTable({ result, prices, activeTab, supabase, user
               </ul>
               <p className="text-[10px] text-[#D9745A]/70 mt-2 font-medium">Transaksi tidak bisa disimpan selama ada pelanggaran stok di atas.</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MULTI-OWNER SHARE BREAKDOWN */}
+      {activeTab === 'multi' && ownerBreakdown.length > 0 && (
+        <div className="bg-white rounded-xl border border-[#E8DDC9] shadow-sm overflow-hidden animate-fadeIn">
+          <div className="bg-[#FAF5EA] px-4 py-3 border-b border-[#E8DDC9] flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#2BB673]" />
+              <h3 className="text-xs font-bold text-[#0E3D40] uppercase tracking-wider">
+                Rekapitulasi Proporsi & Nilai Kontribusi Pemilik
+              </h3>
+            </div>
+            <span className="text-[10px] text-[#6B8079]">
+              Fair Share berbasis Nilai Rupiah (IDR) & Stok Tersedia
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-[#FAF5EA]/50 border-b border-[#E8DDC9] text-[#6B8079] font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-2.5 px-3">Pemilik</th>
+                  <th className="py-2.5 px-3 text-center">Target Kuota</th>
+                  <th className="py-2.5 px-3 text-right">Target Nilai</th>
+                  <th className="py-2.5 px-3 text-right">Realisasi Nilai</th>
+                  <th className="py-2.5 px-3 text-center">Realisasi Porsi</th>
+                  <th className="py-2.5 px-3 text-center">Akun Terpakai</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E8DDC9]/50">
+                {ownerBreakdown.map(ob => {
+                  const totalEst = totals?.estimated_value || 0;
+                  const realPct = totalEst > 0 ? ((ob.actualVal / totalEst) * 100).toFixed(1) : '0';
+                  const diff = ob.actualVal - ob.targetVal;
+
+                  let statusBadge = (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Sesuai Target
+                    </span>
+                  );
+                  if (diff > 5000) {
+                    statusBadge = (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Menyerap sisa order karena anggota lain kehabisan stok">
+                        +Overflow (+Rp {fmt(diff)})
+                      </span>
+                    );
+                  } else if (diff < -5000) {
+                    statusBadge = (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Stok akun tidak mencukupi untuk memenuhi target awal">
+                        Stok Kurang (-Rp {fmt(Math.abs(diff))})
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <tr key={ob.userId} className="hover:bg-[#FAF5EA]/20">
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-[#0E3D40]">{ob.name}</div>
+                        <div className="text-[10px] text-[#6B8079] flex items-center gap-2 mt-0.5">
+                          {RESOURCES.map(res => ob.actualNet[res] > 0 ? (
+                            <span key={res} className="font-mono">
+                              {RESOURCE_LABELS[res].charAt(0)}: {fmt(ob.actualNet[res])}
+                            </span>
+                          ) : null)}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-bold text-[#0E3D40]">{ob.targetPct}%</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-[#6B8079]">Rp {fmt(ob.targetVal)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-[#2BB673]">Rp {fmt(ob.actualVal)}</td>
+                      <td className="py-2.5 px-3 text-center font-mono font-bold text-[#0E3D40]">{realPct}%</td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="px-2 py-0.5 rounded-md bg-[#0E3D40]/5 font-bold text-[#0E3D40] text-[10px]">
+                          {ob.accountsCount} Akun
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">{statusBadge}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

@@ -43,7 +43,21 @@ export default function GameAccountsPage() {
   useEffect(() => {
     fetchData();
     const timer = setInterval(() => setNow(new Date()), 10000);
-    return () => clearInterval(timer);
+    const channel = supabase
+      .channel('game-accounts-stock-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_stocks' }, (payload) => {
+        const s = payload.new as any;
+        if (!s || !s.game_account_id) return;
+        setAccounts(prev => prev.map(a =>
+          a.id === s.game_account_id ? { ...a, resource_stock: { ...(a.resource_stock || {}), ...s } } : a
+        ));
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchData() {
@@ -238,24 +252,6 @@ export default function GameAccountsPage() {
         )}
       </div>
 
-      {/* Summary chips */}
-      <div className="flex flex-wrap gap-2">
-        {kingdomGroups.map(g => (
-          <span
-            key={g.kingdomName}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
-            style={{ borderColor: g.colorHex, color: g.colorHex, backgroundColor: `${g.colorHex}15` }}
-          >
-            <Shield className="w-3 h-3" />
-            {g.kingdomName}
-            <span className="ml-0.5 opacity-70">· {g.accounts.length}</span>
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border border-[#E8DDC9] text-[#5C6E6E] bg-[#FAF5EA]">
-          Total {accounts.length} akun
-        </span>
-      </div>
-
       {/* Kingdom Tabs & Accounts grouped by Owner */}
       {accounts.length === 0 ? (
         <div className="card p-12 text-center text-[#6B8079]">Belum ada akun game.</div>
@@ -298,35 +294,60 @@ export default function GameAccountsPage() {
                 const isCollapsed = collapsedOwners.has(ownerId);
                 const doneCount = ownerAccs.filter(a => isDailyCompleted(a.daily_completed_at, now)).length;
 
+                // Total stock for this owner
+                const ownerStockTotals: Record<ResourceType, number> = { food: 0, wood: 0, stone: 0, gold: 0 };
+                ownerAccs.forEach(acc => {
+                  RESOURCES.forEach(res => {
+                    ownerStockTotals[res] += (acc.resource_stock?.[res] || 0);
+                  });
+                });
+
                 return (
                   <div key={ownerId} className="rounded-xl border border-[#E8DDC9] overflow-hidden shadow-sm">
                     {/* Owner Header (collapsible) */}
                     <button
                       type="button"
                       onClick={() => toggleOwner(ownerId)}
-                      className="w-full flex items-center gap-3 px-4 py-3 bg-[#0E3D40] hover:bg-[#0E3D40]/90 transition-colors text-left"
+                      className="w-full flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-3.5 bg-[#0E3D40] hover:bg-[#0E3D40]/95 transition-colors text-left"
                     >
-                      <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center shrink-0">
-                        <Users className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-white text-sm">{ownerName}</div>
-                        <div className="text-[10px] text-white/60 flex items-center gap-2 flex-wrap">
-                          <span>{ownerAccs.length} akun</span>
-                          <span>·</span>
-                          <span className={cn(
-                            "font-medium",
-                            doneCount === ownerAccs.length ? "text-emerald-300" : "text-amber-200"
-                          )}>
-                            Daily: {doneCount}/{ownerAccs.length} selesai
-                          </span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                          <Users className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-white text-sm">{ownerName}</div>
+                          <div className="text-[10px] text-white/60 flex items-center gap-2 flex-wrap">
+                            <span>{ownerAccs.length} akun</span>
+                            <span>·</span>
+                            <span className={cn(
+                              "font-semibold",
+                              doneCount === ownerAccs.length ? "text-emerald-300" : "text-amber-200"
+                            )}>
+                              Daily: {doneCount}/{ownerAccs.length} selesai
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      {isCollapsed ? (
-                        <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-white/60 shrink-0" />
-                      )}
+
+                      {/* Owner Stock Summary on Header */}
+                      <div className="hidden md:flex items-center gap-4">
+                        {RESOURCES.map(res => (
+                          <div key={res} className="text-right">
+                            <div className="text-[8px] font-bold text-white/50 uppercase tracking-wider flex items-center justify-end gap-1">
+                              <div className={cn("w-1.5 h-1.5 rounded-full", RESOURCE_DOT[res])} />
+                              {RESOURCE_LABELS[res]}
+                            </div>
+                            <div className="font-mono font-bold text-xs text-white">
+                              {ownerStockTotals[res] > 0 ? fmt(ownerStockTotals[res]) : '-'}
+                            </div>
+                          </div>
+                        ))}
+                        {isCollapsed ? (
+                          <ChevronRight className="w-4 h-4 text-white/60 shrink-0 ml-1" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-white/60 shrink-0 ml-1" />
+                        )}
+                      </div>
                     </button>
 
                     {/* Table for this Owner */}
@@ -338,7 +359,6 @@ export default function GameAccountsPage() {
                               <th className="py-2.5 px-4 font-bold">Nama Akun</th>
                               <th className="py-2.5 px-3 text-center font-bold">TP / SH</th>
                               <th className="py-2.5 px-3 text-center font-bold">Daily</th>
-                              <th className="py-2.5 px-4 font-bold">Catatan</th>
                               {RESOURCES.map(res => (
                                 <th key={res} className="py-2.5 px-4 text-right font-bold">
                                   <div className="flex items-center justify-end gap-1">
@@ -362,15 +382,22 @@ export default function GameAccountsPage() {
                                   key={acc.id}
                                   className="hover:bg-[#FAF5EA]/60 transition-colors bg-white"
                                 >
-                                  {/* Nama & badge */}
+                                  {/* Nama & badge & Catatan */}
                                   <td className="py-3 px-4">
-                                    <div className="font-bold text-[#0E3D40] leading-tight">{acc.name}</div>
-                                    <span className={cn(
-                                      'text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-0.5 inline-block',
-                                      acc.type === 'main' ? 'bg-[#0E3D40] text-white' : 'bg-[#E8DDC9] text-[#5C6E6E]'
-                                    )}>
-                                      {acc.type}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-[#0E3D40] leading-tight text-xs">{acc.name}</span>
+                                      <span className={cn(
+                                        'text-[8px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider',
+                                        acc.type === 'main' ? 'bg-[#0E3D40] text-white' : 'bg-[#E8DDC9] text-[#5C6E6E]'
+                                      )}>
+                                        {acc.type}
+                                      </span>
+                                    </div>
+                                    {acc.notes && (
+                                      <div className="text-[10px] text-[#6B8079] mt-0.5 max-w-[200px] truncate" title={acc.notes}>
+                                        {acc.notes}
+                                      </div>
+                                    )}
                                   </td>
 
                                   {/* TP / SH */}
@@ -383,43 +410,35 @@ export default function GameAccountsPage() {
                                   </td>
 
                                   {/* Daily Quest Status Toggle */}
-                                  <td
-                                    className="py-3 px-3 text-center whitespace-nowrap cursor-pointer hover:bg-black/5 transition-colors select-none"
-                                    onClick={() => !isDailySaving && handleToggleDaily(acc.id, isDone)}
-                                    title={isDone ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : "Belum daily. Klik jika sudah selesai."}
-                                  >
+                                  <td className="py-3 px-3 text-center whitespace-nowrap">
                                     {isDailySaving ? (
                                       <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2BB673] mx-auto" />
-                                    ) : isDone ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleToggleDaily(acc.id, true);
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer active:scale-95"
-                                      >
-                                        <CheckCircle2 className="w-3 h-3 text-emerald-600 fill-emerald-100" />
-                                        <span>Selesai</span>
-                                      </button>
                                     ) : (
                                       <button
                                         type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleToggleDaily(acc.id, false);
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer active:scale-95"
+                                        disabled={!canEditDaily}
+                                        onClick={() => handleToggleDaily(acc.id, isDone)}
+                                        title={isDone ? `Selesai ${completedTimeStr}. Klik untuk batalkan.` : "Belum daily. Klik jika sudah selesai."}
+                                        className={cn(
+                                          "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer active:scale-95 select-none",
+                                          isDone
+                                            ? "bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs hover:bg-emerald-100"
+                                            : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+                                        )}
                                       >
-                                        <Circle className="w-2.5 h-2.5 text-amber-600 stroke-[2.5]" />
-                                        <span>Belum</span>
+                                        {isDone ? (
+                                          <>
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-600 fill-emerald-100" />
+                                            <span>Selesai</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Circle className="w-2.5 h-2.5 text-amber-600 stroke-[2.5]" />
+                                            <span>Belum</span>
+                                          </>
+                                        )}
                                       </button>
                                     )}
-                                  </td>
-
-                                  {/* Catatan */}
-                                  <td className="py-3 px-4 text-[#6B8079] text-xs max-w-[140px] truncate" title={acc.notes || ''}>
-                                    {acc.notes || <span className="opacity-30">—</span>}
                                   </td>
 
                                   {/* Resource stocks */}
@@ -499,6 +518,21 @@ export default function GameAccountsPage() {
                               );
                             })}
                           </tbody>
+
+                          {/* Subtotal Footer */}
+                          <tfoot className="bg-[#FAF5EA] font-bold border-t border-[#E8DDC9]">
+                            <tr>
+                              <td colSpan={3} className="py-2.5 px-4 text-[#0E3D40] text-xs uppercase tracking-wider">
+                                Subtotal ({ownerAccs.length} Akun)
+                              </td>
+                              {RESOURCES.map(res => (
+                                <td key={res} className="py-2.5 px-4 text-right font-mono text-[#0E3D40] text-xs">
+                                  {ownerStockTotals[res] > 0 ? fmt(ownerStockTotals[res]) : '-'}
+                                </td>
+                              ))}
+                              <td className="py-2.5 px-4"></td>
+                            </tr>
+                          </tfoot>
                         </table>
                       </div>
                     )}

@@ -198,49 +198,211 @@ const STOREHOUSE_PROTECTION: Record<number, Record<ResourceType, number>> = {
   25: { food: 2500000, wood: 2500000, stone: 2500000, gold: 2500000 },
 };
 
-// ─── Smart Greedy Drain + Owner Balance ─────────────────────────────────────
+// ─── Smart Greedy Drain + Owner Balance + Cost Optimization ──────────────────
+
+export interface SmartCalcOptions {
+  priorityAccountIds?: number[];
+  ownerShares?: Record<string, number>; // user_id -> share percentage (e.g. 50, 50)
+}
 
 export function calculateSmart(
   accounts: GameAccount[],
   targets: Record<ResourceType, number>,
   prices: ResourcePrices,
+  options?: SmartCalcOptions,
 ): { accountsData: AccountCalcData[]; totals: CalcTotals; warnings: string[] } {
   const accountsData = buildAccountData(accounts);
   const warnings: string[] = [];
+  const RES_ORDER: ResourceType[] = ['food', 'wood', 'stone', 'gold'];
 
-  const remaining: Record<ResourceType, number> = { ...targets };
-  const ownerTotalValue: Record<string, number> = {};
-  const totalCapacity: Record<string, number> = {};
-
-  for (const accData of accountsData) {
-    const ownerId = String((accData.account as any).user_id || '');
-    totalCapacity[ownerId] = (totalCapacity[ownerId] || 0) +
-      RESOURCES.reduce((s, r) => s + accData.resources[r].sendable_net, 0);
+  // 1. Validasi: Rate per M wajib diisi untuk setiap resource yang memiliki target
+  for (const res of RES_ORDER) {
+    if (targets[res] > 0) {
+      const p = prices[res];
+      if (!p || p <= 0 || !Number.isFinite(p)) {
+        warnings.push(`Harga / Rate per M untuk ${res.toUpperCase()} wajib diisi (tidak boleh 0)!`);
+      }
+    }
   }
 
+  const remaining: Record<ResourceType, number> = { ...targets };
   const assigned: Record<number, Record<ResourceType, number>> = {};
   for (const accData of accountsData) {
     assigned[accData.account.id] = { food: 0, wood: 0, stone: 0, gold: 0 };
   }
 
-  const RES_ORDER: ResourceType[] = ['food', 'wood', 'stone', 'gold'];
+  const hasRemaining = () => RES_ORDER.some(r => remaining[r] > 0);
 
-  // Greedy loop: pick best account each iteration
-  let anyRemaining = () => RES_ORDER.some(r => remaining[r] > 0);
+  // ─── FASE 1: Prioritas Akun Manual (ALL IN Pinned Accounts) ────────────────
+  const priorityIds = new Set(options?.priorityAccountIds || []);
+  if (priorityIds.size > 0 && hasRemaining()) {
+    const priorityAccs = accountsData.filter(ad => priorityIds.has(ad.account.id));
+    for (const accData of priorityAccs) {
+      const a = assigned[accData.account.id];
+      for (const res of RES_ORDER) {
+        if (remaining[res] <= 0) continue;
+        const avail = accData.resources[res].sendable_net - a[res];
+        if (avail <= 0) continue;
+        const take = Math.min(avail, remaining[res]);
+        a[res] += take;
+        remaining[res] -= take;
+      }
+    }
+  }
+
+  // ─── FASE 2: Single-Account Solver (Hemat Teleport) ────────────────────────
+  // Jika seluruh sisa pesanan bisa diselesaikan oleh CUKUP 1 AKUN saja,
+  // pilih 1 akun terbaik tersebut untuk menghemat biaya Teleport (cukup 2x TP).
+  const isMultiOwnerRequest = options?.ownerShares && Object.keys(options.ownerShares).length > 1;
+
+  if (hasRemaining() && !isMultiOwnerRequest) {
+    const singleSolvers = accountsData.filter(accData => {
+      const a = assigned[accData.account.id];
+      return RES_ORDER.every(res => {
+        if (remaining[res] <= 0) return true;
+        const avail = accData.resources[res].sendable_net - a[res];
+        return avail >= remaining[res];
+      });
+    });
+
+    if (singleSolvers.length > 0) {
+      // Skor kandidat: prioritaskan yang pas (ALL IN) tanpa sisa, sisa paling sedikit, dan level TP tertinggi
+      let bestSolver = singleSolvers[0];
+      let bestSolverScore = -Infinity;
+
+      for (const solver of singleSolvers) {
+        const a = assigned[solver.account.id];
+        let totalLeftover = 0;
+        let isExactAllIn = true;
+
+        for (const res of RES_ORDER) {
+          if (remaining[res] <= 0) continue;
+          const avail = solver.resources[res].sendable_net - a[res];
+          const leftover = avail - remaining[res];
+          totalLeftover += leftover;
+          if (leftover > 0) isExactAllIn = false;
+        }
+
+        const tpBonus = (solver.account.trading_post_level || 1) * 2;
+        const score = (isExactAllIn ? 1000 : 0) - (totalLeftover / 1_000_000) + tpBonus;
+
+        if (score > bestSolverScore) {
+          bestSolverScore = score;
+          bestSolver = solver;
+        }
+      }
+
+      // Alokasikan seluruh sisa ke akun tunggal ini
+      const a = assigned[bestSolver.account.id];
+      for (const res of RES_ORDER) {
+        if (remaining[res] <= 0) continue;
+        a[res] += remaining[res];
+        remaining[res] = 0;
+      }
+    }
+  }
+
+  // ─── FASE 3: Pembagian Kuota Multi-Anggota (Level 1: Fair Share + Overflow) ─
+  if (hasRemaining() && isMultiOwnerRequest) {
+    const rawShares = options.ownerShares!;
+    const ownerIds = Object.keys(rawShares);
+    const totalSharePoints = ownerIds.reduce((sum, uid) => sum + (rawShares[uid] || 0), 0) || 1;
+
+    // Hitung sisa total nilai pesanan (Rupiah)
+    const totalRemainingValue = RES_ORDER.reduce(
+      (sum, res) => sum + (remaining[res] / 1_000_000) * (prices[res] || 0),
+      0
+    );
+
+    // Hitung kapasitas nilai maksimal per pemilik
+    const ownerCapacityValues: Record<string, number> = {};
+    for (const uid of ownerIds) {
+      ownerCapacityValues[uid] = accountsData
+        .filter(ad => String((ad.account as any).user_id) === uid)
+        .reduce((sum, ad) => {
+          const a = assigned[ad.account.id];
+          return sum + RES_ORDER.reduce((rSum, res) => {
+            const avail = Math.max(0, ad.resources[res].sendable_net - a[res]);
+            return rSum + (avail / 1_000_000) * (prices[res] || 0);
+          }, 0);
+        }, 0);
+    }
+
+    // Alokasi porsi berbobot dengan pelimpahan sisa (Constrained Water-Filling)
+    const targetOwnerValues: Record<string, number> = {};
+    let valueToDistribute = totalRemainingValue;
+    let eligibleOwners = [...ownerIds];
+
+    while (valueToDistribute > 0 && eligibleOwners.length > 0) {
+      const activeShares = eligibleOwners.reduce((s, uid) => s + (rawShares[uid] || 0), 0) || 1;
+      let surplusValue = 0;
+      const nextEligible: string[] = [];
+
+      for (const uid of eligibleOwners) {
+        const shareFraction = (rawShares[uid] || 0) / activeShares;
+        const ideal = (targetOwnerValues[uid] || 0) + valueToDistribute * shareFraction;
+        const maxCap = ownerCapacityValues[uid] || 0;
+
+        if (ideal >= maxCap) {
+          targetOwnerValues[uid] = maxCap;
+          surplusValue += (ideal - maxCap);
+        } else {
+          targetOwnerValues[uid] = ideal;
+          nextEligible.push(uid);
+        }
+      }
+
+      if (surplusValue <= 0 || nextEligible.length === eligibleOwners.length) break;
+      valueToDistribute = surplusValue;
+      eligibleOwners = nextEligible;
+    }
+
+    // Eksekusi pengisian kuota per pemilik menggunakan akun seminimal mungkin (Multi-Resource Drain)
+    for (const uid of ownerIds) {
+      let quotaValRemaining = targetOwnerValues[uid] || 0;
+      if (quotaValRemaining <= 0) continue;
+
+      const ownerAccounts = accountsData
+        .filter(ad => String((ad.account as any).user_id) === uid)
+        .sort((a, b) => (b.account.trading_post_level || 1) - (a.account.trading_post_level || 1));
+
+      for (const accData of ownerAccounts) {
+        if (quotaValRemaining <= 0 || !hasRemaining()) break;
+        const a = assigned[accData.account.id];
+
+        for (const res of RES_ORDER) {
+          if (remaining[res] <= 0 || quotaValRemaining <= 0) continue;
+          const avail = accData.resources[res].sendable_net - a[res];
+          if (avail <= 0) continue;
+
+          const unitPrice = (prices[res] || 0) / 1_000_000;
+          const maxAmountByQuota = unitPrice > 0 ? Math.floor(quotaValRemaining / unitPrice) : avail;
+          const take = Math.min(avail, remaining[res], maxAmountByQuota);
+
+          if (take > 0) {
+            a[res] += take;
+            remaining[res] -= take;
+            quotaValRemaining -= (take / 1_000_000) * (prices[res] || 0);
+          }
+        }
+      }
+    }
+  }
+
+  // ─── FASE 4: Greedy Multi-Resource Drain untuk Sisa Kebutuhan ──────────────
   let iter = 0;
   const MAX_ITER = accountsData.length * 2 + 10;
 
-  while (anyRemaining() && iter < MAX_ITER) {
+  while (hasRemaining() && iter < MAX_ITER) {
     iter++;
     let bestAcc: AccountCalcData | null = null;
     let bestScore = -Infinity;
     let bestAssignment: Record<ResourceType, number> = { food: 0, wood: 0, stone: 0, gold: 0 };
 
     for (const accData of accountsData) {
-      const ownerId = String((accData.account as any).user_id || '');
       const a = assigned[accData.account.id];
 
-      // Check if this account can still contribute anything
+      // Periksa apakah akun masih bisa berkontribusi
       let canContribute = false;
       for (const res of RES_ORDER) {
         if (remaining[res] <= 0) continue;
@@ -249,46 +411,26 @@ export function calculateSmart(
       }
       if (!canContribute) continue;
 
-      // Compute how much we'd assign if we picked this account
+      // Hitung alokasi sinergi multi-resource dari akun ini
       const assign: Record<ResourceType, number> = { food: 0, wood: 0, stone: 0, gold: 0 };
+      let assignedValue = 0;
+      let allFull = true;
+
       for (const res of RES_ORDER) {
         if (remaining[res] <= 0) continue;
         const avail = accData.resources[res].sendable_net - a[res];
-        assign[res] = avail >= remaining[res] ? remaining[res] : avail;
+        const take = Math.min(avail, remaining[res]);
+        assign[res] = take;
+        assignedValue += (take / 1_000_000) * (prices[res] || 0);
+        if (avail > 0 && take < avail) allFull = false;
       }
 
-      const assignTotal = RES_ORDER.reduce((s, r) => s + assign[r], 0);
-      if (assignTotal <= 0) continue;
+      if (assignedValue <= 0) continue;
 
-      // Scoring
-      const foodTarget = targets.food || 1;
-      const foodScore = targets.food > 0 ? assign.food / Math.min(targets.food, remaining.food || 1) : 0;
-
-      // Full drain bonus: can this account be fully depleted for all needed resources?
-      let fullDrainScore = 0;
-      let allFull = true;
-      for (const res of RES_ORDER) {
-        const avail = accData.resources[res].sendable_net - a[res];
-        if (avail > 0 && assign[res] < avail) { allFull = false; break; }
-      }
-      if (allFull && assignTotal > 0) fullDrainScore = 10;
-
-      // Owner balance bonus
-      const ownerVal = ownerTotalValue[ownerId] || 0;
-      const maxOwnerVal = Math.max(1, ...Object.values(ownerTotalValue), 1);
-      const ownerBalanceScore = (1 - ownerVal / maxOwnerVal) * 8;
-
-      // Trip efficiency bonus
-      const maxCap = Math.max(1, ...accountsData.map(ad => ad.capacity_per_trip));
-      const tripEffScore = (accData.capacity_per_trip / maxCap) * 4;
-
-      // Weight: prefer accounts with more total capacity
-      const totalAccCapacity = RES_ORDER.reduce((s, r) => s + accData.resources[r].sendable_net, 0);
-      const capacityWeight = totalAccCapacity / Math.max(1, Math.max(...accountsData.map(ad =>
-        RES_ORDER.reduce((s, r) => s + ad.resources[r].sendable_net, 0)
-      )));
-
-      const score = foodScore * 6 + fullDrainScore + ownerBalanceScore + tripEffScore + capacityWeight * 3;
+      // Skor penilaian: Utamakan akun yang bisa ALL IN, suplai nilai besar, dan TP tinggi
+      const fullDrainBonus = allFull ? 50 : 0;
+      const tpBonus = (accData.account.trading_post_level || 1) * 3;
+      const score = assignedValue + fullDrainBonus + tpBonus;
 
       if (score > bestScore) {
         bestScore = score;
@@ -299,21 +441,17 @@ export function calculateSmart(
 
     if (!bestAcc) break;
 
-    // Apply assignment
-    const ownerId = String((bestAcc.account as any).user_id || '');
+    // Terapkan alokasi terbaik
     const a = assigned[bestAcc.account.id];
-    let addedValue = 0;
     for (const res of RES_ORDER) {
       if (bestAssignment[res] <= 0) continue;
       a[res] += bestAssignment[res];
-      addedValue += (bestAssignment[res] / 1_000_000) * (prices[res] || 0);
       remaining[res] -= bestAssignment[res];
       if (remaining[res] < 0) remaining[res] = 0;
     }
-    ownerTotalValue[ownerId] = (ownerTotalValue[ownerId] || 0) + addedValue;
   }
 
-  // Apply assignments to accountsData
+  // ─── FASE 5: Rekapitulasi Data Akun & Trip Sequential ───────────────────────
   for (const accData of accountsData) {
     const a = assigned[accData.account.id];
     for (const res of RES_ORDER) {
@@ -332,7 +470,7 @@ export function calculateSmart(
     }
   }
 
-  // Compute sequential trip plans per account
+  // Rencana rute pengiriman (Trip breakdown)
   for (const accData of accountsData) {
     const hasAny = RES_ORDER.some(r => accData.resources[r].required_net > 0);
     if (!hasAny) continue;
@@ -349,12 +487,12 @@ export function calculateSmart(
     );
   }
 
-  // Warnings for unmet targets
+  // Peringatan jika stok keseluruhan tidak mencukupi target
   for (const res of RES_ORDER) {
     if (targets[res] <= 0) continue;
     const assignedTotal = accountsData.reduce((s, ad) => s + ad.resources[res].required_net, 0);
     if (assignedTotal < targets[res]) {
-      warnings.push(`Kapasitas bersih gabungan untuk ${res} (${assignedTotal.toLocaleString('id-ID')}) tidak mencukupi target (${targets[res].toLocaleString('id-ID')})!`);
+      warnings.push(`Kapasitas stok bersih untuk ${res.toUpperCase()} (${assignedTotal.toLocaleString('id-ID')}) tidak mencukupi target (${targets[res].toLocaleString('id-ID')})!`);
     }
   }
 
